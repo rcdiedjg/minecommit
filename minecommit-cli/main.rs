@@ -1,0 +1,308 @@
+use std::path::PathBuf;
+
+use anyhow::Context;
+use clap::{Parser, Subcommand};
+use clap_verbosity_flag::{InfoLevel, Verbosity};
+use superflat::{
+    Superflat,
+    utils::cmd::{git_cmd, git_count_objects, git_repack, git_repo_exists},
+};
+use versions::Versioning;
+
+/// Superflat - A bridge between Git and Minecraft save
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+struct Cli {
+    #[command(flatten)]
+    verbosity: Verbosity<InfoLevel>,
+    #[command(subcommand)]
+    action: CliSubcommand,
+}
+
+#[derive(Subcommand)]
+enum CliSubcommand {
+    /// Flatten save to the repo dir
+    Flatten {
+        /// Path to your save
+        save_dir: PathBuf,
+        /// Path to the flatten Git repository
+        repo_dir: PathBuf,
+        /// Minecraft version (e.g. 1.21.11)
+        #[arg(long)]
+        mc_version: Versioning,
+    },
+    /// Restore save from repo dir
+    Unflatten {
+        /// Path to your save
+        save_dir: PathBuf,
+        /// Path to the flatten Git repository
+        repo_dir: PathBuf,
+        /// Minecraft version (e.g. 1.21.11)
+        #[arg(long)]
+        mc_version: Versioning,
+    },
+    /// Flatten save and commit to Git
+    Commit {
+        /// Path to your save
+        save_dir: PathBuf,
+        /// Path to the bare Git repository
+        #[arg(value_parser = git_repo_exists)]
+        git_dir: PathBuf,
+        /// Commit to this branch.
+        #[arg(short, long)]
+        branch: String,
+        /// Commit as initial commit.
+        #[arg(long)]
+        init: bool,
+        /// Commit message.
+        #[arg(short, long)]
+        message: String,
+        /// Automatically repack loose objects.
+        #[arg(long = "repack", default_value_t = false)]
+        use_repack: bool,
+        /// Minecraft version (e.g. 1.21.11)
+        #[arg(long)]
+        mc_version: Versioning,
+    },
+    /// Restore save from commit
+    Checkout {
+        /// Path to your save
+        save_dir: PathBuf,
+        /// Path to the bare Git repository
+        git_dir: PathBuf,
+        /// Commit-ish to checkout (commit ID or revision expression, e.g. HEAD^1, branch~2)
+        #[arg(short, long)]
+        commit: String,
+        /// Minecraft version (e.g. 1.21.11)
+        #[arg(long)]
+        mc_version: Versioning,
+    },
+    /// Utility tools for debug
+    Utils {
+        #[command(subcommand)]
+        action: UtilsSubcommand,
+    },
+}
+
+#[derive(Subcommand)]
+enum UtilsSubcommand {
+    /// Dump chunk nbt data to stdout
+    Chunk {
+        /// Path to region file
+        region_path: PathBuf,
+        /// Chunk X
+        chunk_x: i32,
+        /// Chunk Z
+        chunk_z: i32,
+    },
+    /// Dump section block or biome data to stdout
+    Section {
+        /// Path to region file
+        region_path: PathBuf,
+        /// Chunk X
+        chunk_x: i32,
+        /// Chunk Z
+        chunk_z: i32,
+        /// Section Y index
+        section_y: i8,
+        /// Dump block state IDs (4096 x u16 LE)
+        #[arg(long, group = "data_type", required = true)]
+        block: bool,
+        /// Dump biome IDs (64 x u8)
+        #[arg(long, group = "data_type", required = true)]
+        biome: bool,
+    },
+}
+
+fn main() -> Result<(), anyhow::Error> {
+    let cli = Cli::parse();
+    env_logger::Builder::new()
+        .filter_level(cli.verbosity.log_level_filter())
+        .init();
+
+    log::info!("Welcome to superflat!");
+    match cli.action {
+        CliSubcommand::Flatten {
+            save_dir,
+            repo_dir,
+            mc_version,
+        } => Superflat::new(save_dir, repo_dir, mc_version).flatten(),
+        CliSubcommand::Unflatten {
+            save_dir,
+            repo_dir,
+            mc_version,
+        } => Superflat::new(save_dir, repo_dir, mc_version).unflatten(),
+        CliSubcommand::Commit {
+            save_dir,
+            git_dir,
+            branch,
+            init,
+            message,
+            use_repack,
+            mc_version,
+        } => {
+            let parents = {
+                let mut cmd = git_cmd(&git_dir, ["rev-parse", &format!("{branch}^{{commit}}")]);
+                let out = cmd.output().context("failed to run git rev-parse")?;
+                let branch_exists = out.status.success();
+                match (branch_exists, init) {
+                    (true, false) => {
+                        vec![
+                            String::from_utf8(out.stdout)
+                                .context("git output is not valid UTF-8")?
+                                .trim()
+                                .to_owned(),
+                        ]
+                    }
+                    (false, true) => vec![],
+                    (true, true) => anyhow::bail!("branch '{branch}' exists, remove --init"),
+                    (false, false) => anyhow::bail!(
+                        "invalid branch name '{branch}'. Self-check via 'git --git-dir {:?} rev-parse {branch}^{{commit}}'",
+                        git_dir.as_os_str()
+                    ),
+                }
+            };
+            let r#ref = format!("refs/heads/{}", &branch);
+
+            let size_before = git_count_objects(git_dir.to_owned())
+                .context("failed to count git objects")?
+                .total_size_mib();
+            Superflat::new(save_dir, git_dir.to_owned(), mc_version).commit(
+                parents,
+                &message,
+                Some(r#ref),
+            )?;
+
+            if use_repack {
+                git_count_objects(&git_dir).context("failed to count git objects")?;
+                git_repack(git_dir.to_owned())?;
+            } else {
+                log::warn!("--repack is not enabled, Git repository can get bloated") // TODO: opt prompt
+            }
+
+            let size_after = git_count_objects(git_dir.to_owned())
+                .context("failed to count git objects")?
+                .total_size_mib();
+            log::info!(
+                "Done. Repo total size: {size_after:.2} MiB (up {:+.2}% from {size_before:.2} MiB)",
+                (size_after - size_before) / size_before * 100.0
+            );
+            Ok(())
+        }
+        CliSubcommand::Checkout {
+            save_dir,
+            git_dir,
+            commit,
+            mc_version,
+        } => {
+            if save_dir.exists() {
+                let bak = save_dir.with_extension("bak");
+                log::warn!("save_dir {save_dir:?} already exists, renaming to {bak:?}");
+                std::fs::rename(&save_dir, &bak).context("failed to rename save directory")?;
+            }
+            Superflat::new(save_dir, git_dir, mc_version).checkout(commit)?;
+            log::info!("Done");
+            Ok(())
+        }
+
+        CliSubcommand::Utils { action } => Ok(match action {
+            UtilsSubcommand::Chunk {
+                region_path,
+                chunk_x,
+                chunk_z,
+            } => {
+                use std::fs;
+                use std::io::{self, Write};
+                use superflat::utils::region::{parse_xz, read_region};
+
+                let (region_x, region_z) = parse_xz(
+                    region_path
+                        .file_name()
+                        .context("invalid region path")?
+                        .to_str()
+                        .context("region path contains invalid UTF-8")?,
+                )
+                .context("failed to parse region filename")?;
+                let (_, xz_nbts) = read_region(
+                    fs::File::open(region_path).context("failed to open region file")?,
+                    region_x,
+                    region_z,
+                )
+                .context("failed to read region file")?
+                .context("region file is empty")?;
+                let (_, _, nbt) = xz_nbts
+                    .iter()
+                    .find(|(x, z, _)| *x == chunk_x && *z == chunk_z)
+                    .with_context(|| {
+                        format!(
+                            "missing chunk, all chunk positions: {:#?}",
+                            xz_nbts
+                                .iter()
+                                .map(|(x, z, _)| format!("({x}, {z})"))
+                                .collect::<Vec<_>>()
+                        )
+                    })
+                    .context("chunk not found")?;
+                io::stdout()
+                    .write_all(nbt)
+                    .context("failed to write to stdout")?;
+            }
+            UtilsSubcommand::Section {
+                region_path,
+                chunk_x,
+                chunk_z,
+                section_y,
+                block,
+                biome: _,
+            } => {
+                use std::fs;
+                use std::io::{self, Cursor, Write};
+                use superflat::utils::nbt::load_nbt;
+                use superflat::utils::region::{parse_xz, read_region, split_chunk};
+
+                let (region_x, region_z) = parse_xz(
+                    region_path
+                        .file_name()
+                        .context("invalid region path")?
+                        .to_str()
+                        .context("region path contains invalid UTF-8")?,
+                )
+                .context("failed to parse region filename")?;
+                let (_, xz_nbts) = read_region(
+                    fs::File::open(region_path).context("failed to open region file")?,
+                    region_x,
+                    region_z,
+                )
+                .context("failed to read region file")?
+                .context("region file is empty")?;
+                let (_, _, nbt_bytes) = xz_nbts
+                    .iter()
+                    .find(|(x, z, _)| *x == chunk_x && *z == chunk_z)
+                    .context("chunk not found")?;
+                let nbt = load_nbt(Cursor::new(nbt_bytes)).context("failed to load chunk nbt")?;
+                let (_, sections_dump) =
+                    split_chunk(nbt).context("failed to load sections dump from chunk nbt")?;
+                let section = sections_dump
+                    .sections
+                    .iter()
+                    .find(|s| s.y == section_y)
+                    .context("section not found")?;
+                let mut stdout = io::stdout().lock();
+                if block {
+                    let bytes: Vec<u8> = section
+                        .block_state
+                        .iter()
+                        .flat_map(|&v| v.to_le_bytes())
+                        .collect();
+                    stdout
+                        .write_all(&bytes)
+                        .context("failed to write to stdout")?;
+                } else {
+                    stdout
+                        .write_all(&section.biome)
+                        .context("failed to write to stdout")?;
+                }
+            }
+        }),
+    }
+}

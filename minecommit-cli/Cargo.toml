@@ -1,0 +1,19 @@
+[package]
+name = "minecommit-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+minecommit = { path = "../minecommit" }
+anyhow.workspace = true
+log.workspace = true
+versions.workspace = true
+
+clap = { version = "4.6.0", features = ["derive"] }
+clap-verbosity-flag = "3.0.4"
+env_logger = "0.11.9"
+
+[[bin]]
+name = "minecommit"
+path = "main.rs"
