@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use anyhow::Result;
-
 type Biome = String;
 type BlockState = (String, Box<[(String, String)]>);
 
@@ -10,6 +8,17 @@ pub struct MinecraftDataMapping {
     biome_mapping: HashMap<Biome, u8>,
     block_states: Vec<BlockState>,
     block_state_mapping: HashMap<BlockState, u16>,
+}
+
+impl Default for MinecraftDataMapping {
+    fn default() -> Self {
+        Self {
+            biomes: Vec::new(),
+            biome_mapping: HashMap::new(),
+            block_states: Vec::new(),
+            block_state_mapping: HashMap::new(),
+        }
+    }
 }
 
 impl MinecraftDataMapping {

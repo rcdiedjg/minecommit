@@ -30,7 +30,7 @@ impl ChunkRegionHandler {
 
 impl Handler for ChunkRegionHandler {
     fn flatten(self, save: &impl OdbReader, storage: &mut impl OdbWriter) -> Result<()> {
-        let mapping = MinecraftDataMapping;
+        let mapping = MinecraftDataMapping::default();
         for pattern in FLATTEN_PATTERNS {
             for key in save.glob(pattern)? {
                 log::info!("Process chunk region file {key}");
@@ -99,7 +99,7 @@ impl Handler for ChunkRegionHandler {
     }
 
     fn unflatten(self, save: &mut impl OdbWriter, storage: &impl OdbReader) -> Result<()> {
-        let mapping = MinecraftDataMapping;
+        let mapping = MinecraftDataMapping::default();
         for pattern in UNFLATTEN_PATTERNS {
             for ts_key in storage.glob(pattern)? {
                 log::info!("Process chunk region file (timestamp header) {ts_key}");

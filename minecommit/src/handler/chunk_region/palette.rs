@@ -79,7 +79,9 @@ pub fn dump_biome(mapping: &MinecraftDataMapping, nbt: &NbtCompound) -> Result<B
         .map(|entry| {
             let s = entry.to_string_lossy();
             let key = s.strip_prefix("minecraft:").unwrap_or(&s);
-            mapping.biome_id_from_name(key)
+            mapping
+                .biome_id_from_name(key)
+                .ok_or(anyhow::anyhow!("unknown biome {key}"))
         })
         .collect::<Result<Vec<_>>>()?;
     let cube = if let Some(rows) = palette_rows {
@@ -100,7 +102,9 @@ pub fn load_biome(mapping: &MinecraftDataMapping, cube: Box<Cube<u8, 4>>) -> Res
     let kvs = if is_homo {
         let entries = vec![Mutf8String::from_string(format!(
             "minecraft:{}",
-            mapping.biome_name_from_id(first)?
+            mapping
+                .biome_name_from_id(first)
+                .ok_or(anyhow::anyhow!("out of biomes bound: {first}"))?
         ))];
         vec![("palette".into(), NbtTag::List(NbtList::from(entries)))]
     } else {
@@ -110,7 +114,9 @@ pub fn load_biome(mapping: &MinecraftDataMapping, cube: Box<Cube<u8, 4>>) -> Res
             .map(|&id| {
                 Ok(Mutf8String::from_string(format!(
                     "minecraft:{}",
-                    mapping.biome_name_from_id(id)?
+                    mapping
+                        .biome_name_from_id(id)
+                        .ok_or(anyhow::anyhow!("out of biomes bound: {first}"))?
                 )))
             })
             .collect::<Result<Vec<_>>>()?;
@@ -152,15 +158,19 @@ pub fn dump_block(mapping: &MinecraftDataMapping, nbt: &NbtCompound) -> Result<B
                         Ok((k.to_str(), v.to_str()))
                     })
                     .collect::<Result<Vec<_>>>()?;
-                mapping.block_state_id_from_name_and_props(
-                    &name,
-                    &props_map
-                        .iter()
-                        .map(|(k, v)| (k.as_ref(), v.as_ref()))
-                        .collect::<Vec<_>>(),
-                )
+                mapping
+                    .block_state_id_from_name_and_props(
+                        &name,
+                        &props_map
+                            .iter()
+                            .map(|(k, v)| (k.as_ref(), v.as_ref()))
+                            .collect::<Vec<_>>(),
+                    )
+                    .ok_or_else(|| anyhow::anyhow!("unknown block state: {name}"))
             } else {
-                mapping.block_state_id_from_name_and_props(&name, &[])
+                mapping
+                    .block_state_id_from_name_and_props(&name, &[])
+                    .ok_or_else(|| anyhow::anyhow!("unknown block state: {name}"))
             }
         })
         .collect::<Result<Vec<_>>>()?;
@@ -181,7 +191,9 @@ pub fn load_block(mapping: &MinecraftDataMapping, cube: Box<Cube<u16, 16>>) -> R
     let entries = entries
         .iter()
         .map(|&state_id| {
-            let (name, props) = mapping.block_name_and_props_from_state_id(state_id)?;
+            let (name, props) = mapping
+                .block_name_and_props_from_state_id(state_id)
+                .ok_or_else(|| anyhow::anyhow!("out of block states bound: {state_id}"))?;
             let kvs = if props.is_empty() {
                 vec![(
                     "Name".into(),
