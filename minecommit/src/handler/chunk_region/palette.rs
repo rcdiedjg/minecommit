@@ -77,11 +77,9 @@ pub fn dump_biome(mapping: &MinecraftDataMapping, nbt: &NbtCompound) -> Result<B
         .with_context(|| format!("expect 'palette' is a NBT string list"))?
         .into_iter()
         .map(|entry| {
-            let s = entry.to_string_lossy();
-            let key = s.strip_prefix("minecraft:").unwrap_or(&s);
             mapping
-                .biome_id_from_name(key)
-                .ok_or(anyhow::anyhow!("unknown biome {key}"))
+                .biome_id_from_name(&entry.to_str())
+                .ok_or(anyhow::anyhow!("unknown biome {}", &entry.to_str()))
         })
         .collect::<Result<Vec<_>>>()?;
     let cube = if let Some(rows) = palette_rows {
@@ -100,24 +98,22 @@ pub fn load_biome(mapping: &MinecraftDataMapping, cube: Box<Cube<u8, 4>>) -> Res
     let first = cube[0][0][0];
     let is_homo = cube.iter().flatten().flatten().all(|item| *item == first);
     let kvs = if is_homo {
-        let entries = vec![Mutf8String::from_string(format!(
-            "minecraft:{}",
+        let entries = vec![Mutf8String::from_string(
             mapping
                 .biome_name_from_id(first)
-                .ok_or(anyhow::anyhow!("out of biomes bound: {first}"))?
-        ))];
+                .ok_or(anyhow::anyhow!("out of biomes bound: {first}"))?,
+        )];
         vec![("palette".into(), NbtTag::List(NbtList::from(entries)))]
     } else {
         let (rows, entries) = load::<u8, 4>(&cube, fast_count_bits);
         let entries = entries
             .iter()
             .map(|&id| {
-                Ok(Mutf8String::from_string(format!(
-                    "minecraft:{}",
+                Ok(Mutf8String::from_string(
                     mapping
                         .biome_name_from_id(id)
-                        .ok_or(anyhow::anyhow!("out of biomes bound: {first}"))?
-                )))
+                        .ok_or(anyhow::anyhow!("out of biomes bound: {first}"))?,
+                ))
             })
             .collect::<Result<Vec<_>>>()?;
         vec![
@@ -141,10 +137,6 @@ pub fn dump_block(mapping: &MinecraftDataMapping, nbt: &NbtCompound) -> Result<B
             let block_name = entry.string("Name").with_context(|| {
                 format!("missing NBT string 'palette.{idx}.Name', got: {entry:#?}")
             })?;
-            let name_binding = block_name.to_str();
-            let name = name_binding
-                .strip_prefix("minecraft:")
-                .unwrap_or(name_binding.as_ref());
             if let Some(props) = entry.compound("Properties") {
                 let props_map: Vec<(Cow<'_, str>, Cow<'_, str>)> = props
                     .iter()
@@ -160,17 +152,17 @@ pub fn dump_block(mapping: &MinecraftDataMapping, nbt: &NbtCompound) -> Result<B
                     .collect::<Result<Vec<_>>>()?;
                 mapping
                     .block_state_id_from_name_and_props(
-                        &name,
+                        &block_name.to_str(),
                         &props_map
                             .iter()
                             .map(|(k, v)| (k.as_ref(), v.as_ref()))
                             .collect::<Vec<_>>(),
                     )
-                    .ok_or_else(|| anyhow::anyhow!("unknown block state: {name}"))
+                    .ok_or_else(|| anyhow::anyhow!("unknown block state: {block_name}"))
             } else {
                 mapping
-                    .block_state_id_from_name_and_props(&name, &[])
-                    .ok_or_else(|| anyhow::anyhow!("unknown block state: {name}"))
+                    .block_state_id_from_name_and_props(&block_name.to_str(), &[])
+                    .ok_or_else(|| anyhow::anyhow!("unknown block state: {block_name}"))
             }
         })
         .collect::<Result<Vec<_>>>()?;
@@ -197,7 +189,7 @@ pub fn load_block(mapping: &MinecraftDataMapping, cube: Box<Cube<u16, 16>>) -> R
             let kvs = if props.is_empty() {
                 vec![(
                     "Name".into(),
-                    NbtTag::String(Mutf8String::from_string(format!("minecraft:{name}"))),
+                    NbtTag::String(Mutf8String::from_string(name)),
                 )]
             } else {
                 let props_kvs = props
@@ -212,7 +204,7 @@ pub fn load_block(mapping: &MinecraftDataMapping, cube: Box<Cube<u16, 16>>) -> R
                 vec![
                     (
                         "Name".into(),
-                        NbtTag::String(Mutf8String::from_string(format!("minecraft:{name}"))),
+                        NbtTag::String(Mutf8String::from_string(name)),
                     ),
                     (
                         "Properties".into(),
