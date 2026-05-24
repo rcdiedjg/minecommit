@@ -4,7 +4,6 @@ use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use simdnbt::owned::{BaseNbt, NbtCompound, NbtList};
 use std::io::{Cursor, Read, Write};
-use versions::Versioning;
 
 use super::Handler;
 use crate::{
@@ -14,9 +13,7 @@ use crate::{
 
 const GZIP_NBT_GLOB_PATTERNS: &[&str] = &["**/*.dat"];
 
-pub(crate) struct GzipNbtHandler {
-    pub(crate) version: Versioning,
-}
+pub(crate) struct GzipNbtHandler {}
 
 impl Handler for GzipNbtHandler {
     fn flatten(self, save: &impl OdbReader, storage: &mut impl OdbWriter) -> Result<()> {
@@ -43,19 +40,13 @@ impl Handler for GzipNbtHandler {
 
                     // Sort recipe book for player data
                     let nbt = {
-                        let field_exists = &self.version
-                            >= &Versioning::new("1.12").context("failed to parse version")?;
-                        let match_file_old = &self.version
-                            < &Versioning::new("26.1").context("failed to parse version")?
-                            && glob::Pattern::new("playerdata/*.dat")
-                                .context("failed to compile glob pattern")?
-                                .matches(&key);
-                        let match_file_new = &self.version
-                            >= &Versioning::new("26.1").context("failed to parse version")?
-                            && glob::Pattern::new("players/data/*.dat")
-                                .context("failed to compile glob pattern")?
-                                .matches(&key);
-                        if field_exists && (match_file_old || match_file_new) {
+                        let match_file_old = glob::Pattern::new("playerdata/*.dat")
+                            .context("failed to compile glob pattern")?
+                            .matches(&key);
+                        let match_file_new = glob::Pattern::new("players/data/*.dat")
+                            .context("failed to compile glob pattern")?
+                            .matches(&key);
+                        if match_file_old || match_file_new {
                             let name = nbt.name().to_owned();
                             let mut comp = nbt.as_compound();
                             sort_recipe_book(&mut comp);
@@ -67,22 +58,16 @@ impl Handler for GzipNbtHandler {
 
                     // Sort recipe book for player data in level.dat
                     let nbt = {
-                        if &self.version
-                            < &Versioning::new("26.1").context("failed to parse version")?
-                            && glob::Pattern::new("level.dat")
-                                .context("failed to compile glob pattern")?
-                                .matches(&key)
+                        if glob::Pattern::new("level.dat")
+                            .context("failed to compile glob pattern")?
+                            .matches(&key)
                         {
                             let name = nbt.name().to_owned();
                             let mut comp = nbt.as_compound();
-                            if let Some(data) = comp.compound_mut("Data") {
-                                if let Some(player) = data.compound_mut("Player") {
-                                    sort_recipe_book(player);
-                                } else {
-                                    log::warn!("Field 'Data.Player' does not exist");
-                                }
-                            } else {
-                                log::warn!("Field 'Data' does not exist");
+                            if let Some(data) = comp.compound_mut("Data")
+                                && let Some(player) = data.compound_mut("Player")
+                            {
+                                sort_recipe_book(player);
                             }
                             BaseNbt::new(name, comp)
                         } else {
@@ -124,7 +109,5 @@ fn sort_recipe_book(comp: &mut NbtCompound) {
                 strings.sort_unstable_by(|a, b| a.as_bytes().cmp(b.as_bytes()));
             }
         }
-    } else {
-        log::warn!("Field 'recipeBook' does not exist");
     }
 }

@@ -10,7 +10,6 @@ pub(crate) use entities_region::EntitiesRegionHandler;
 pub(crate) use gzip_nbt::GzipNbtHandler;
 pub(crate) use poi_region::PoiRegionHandler;
 pub(crate) use raw::RawHandler;
-use versions::Versioning;
 
 use crate::odb::{OdbReader, OdbWriter};
 
@@ -28,13 +27,13 @@ pub(crate) enum CrafterImpl {
 }
 
 impl CrafterImpl {
-    pub(crate) fn get_crafters(version: Versioning) -> Vec<Self> {
+    pub(crate) fn get_crafters() -> Vec<Self> {
         vec![
             Self::ChunkRegion(ChunkRegionHandler {}),
             Self::EntitiesRegion(EntitiesRegionHandler {}),
             Self::PoiRegion(PoiRegionHandler {}),
             Self::Raw(RawHandler {}),
-            Self::GzipNbt(GzipNbtHandler { version }),
+            Self::GzipNbt(GzipNbtHandler {}),
         ]
     }
 }

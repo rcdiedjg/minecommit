@@ -7,7 +7,6 @@ use minecommit::{
     Config,
     utils::cmd::{git_cmd, git_count_objects, git_repack, git_repo_exists},
 };
-use versions::Versioning;
 
 /// Minecommit - Commit your Minecraft world to Git
 #[derive(Parser)]
@@ -27,9 +26,6 @@ enum CliSubcommand {
         save_dir: PathBuf,
         /// Path to the flatten Git repository
         repo_dir: PathBuf,
-        /// Minecraft version (e.g. 1.21.11)
-        #[arg(long)]
-        mc_version: Versioning,
     },
     /// Restore save from repo dir
     Unflatten {
@@ -37,9 +33,6 @@ enum CliSubcommand {
         save_dir: PathBuf,
         /// Path to the flatten Git repository
         repo_dir: PathBuf,
-        /// Minecraft version (e.g. 1.21.11)
-        #[arg(long)]
-        mc_version: Versioning,
     },
     /// Flatten save and commit to Git
     Commit {
@@ -60,9 +53,6 @@ enum CliSubcommand {
         /// Automatically repack loose objects.
         #[arg(long = "repack", default_value_t = false)]
         use_repack: bool,
-        /// Minecraft version (e.g. 1.21.11)
-        #[arg(long)]
-        mc_version: Versioning,
     },
     /// Restore save from commit
     Checkout {
@@ -73,9 +63,6 @@ enum CliSubcommand {
         /// Commit-ish to checkout (commit ID or revision expression, e.g. HEAD^1, branch~2)
         #[arg(short, long)]
         commit: String,
-        /// Minecraft version (e.g. 1.21.11)
-        #[arg(long)]
-        mc_version: Versioning,
     },
     /// Utility tools for debug
     Utils {
@@ -104,16 +91,10 @@ fn main() -> Result<(), anyhow::Error> {
         .init();
 
     match cli.action {
-        CliSubcommand::Flatten {
-            save_dir,
-            repo_dir,
-            mc_version,
-        } => Config::new(save_dir, repo_dir, mc_version).flatten(),
-        CliSubcommand::Unflatten {
-            save_dir,
-            repo_dir,
-            mc_version,
-        } => Config::new(save_dir, repo_dir, mc_version).unflatten(),
+        CliSubcommand::Flatten { save_dir, repo_dir } => Config::new(save_dir, repo_dir).flatten(),
+        CliSubcommand::Unflatten { save_dir, repo_dir } => {
+            Config::new(save_dir, repo_dir).unflatten()
+        }
         CliSubcommand::Commit {
             save_dir,
             git_dir,
@@ -121,7 +102,6 @@ fn main() -> Result<(), anyhow::Error> {
             init,
             message,
             use_repack,
-            mc_version,
         } => {
             let parents = {
                 let mut cmd = git_cmd(&git_dir, ["rev-parse", &format!("{branch}^{{commit}}")]);
@@ -149,11 +129,7 @@ fn main() -> Result<(), anyhow::Error> {
             let size_before = git_count_objects(git_dir.to_owned())
                 .context("failed to count git objects")?
                 .total_size_mib();
-            Config::new(save_dir, git_dir.to_owned(), mc_version).commit(
-                parents,
-                &message,
-                Some(r#ref),
-            )?;
+            Config::new(save_dir, git_dir.to_owned()).commit(parents, &message, Some(r#ref))?;
 
             if use_repack {
                 git_count_objects(&git_dir).context("failed to count git objects")?;
@@ -175,14 +151,13 @@ fn main() -> Result<(), anyhow::Error> {
             save_dir,
             git_dir,
             commit,
-            mc_version,
         } => {
             if save_dir.exists() {
                 let bak = save_dir.with_extension("bak");
                 log::warn!("save_dir {save_dir:?} already exists, renaming to {bak:?}");
                 std::fs::rename(&save_dir, &bak).context("failed to rename save directory")?;
             }
-            Config::new(save_dir, git_dir, mc_version).checkout(commit)?;
+            Config::new(save_dir, git_dir).checkout(commit)?;
             log::info!("Done");
             Ok(())
         }
