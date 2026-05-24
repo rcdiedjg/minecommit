@@ -15,9 +15,9 @@ const FLATTEN_PATTERNS: &[&str] = &["**/region/r.*.*.mca"];
 
 const UNFLATTEN_PATTERNS: &[&str] = &["**/region/r.*.*.mca/timestamp-header"]; // timestamp-header is sentry
 
-pub(crate) struct ChunkRegionCrafter;
+pub(crate) struct ChunkRegionHandler;
 
-impl Handler for ChunkRegionCrafter {
+impl Handler for ChunkRegionHandler {
     fn flatten(self, save: &impl OdbReader, storage: &mut impl OdbWriter) -> Result<()> {
         for pattern in FLATTEN_PATTERNS {
             for key in save.glob(pattern)? {

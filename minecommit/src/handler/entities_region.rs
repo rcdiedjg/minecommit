@@ -10,9 +10,9 @@ const FLATTEN_PATTERNS: &[&str] = &["**/entities/r.*.*.mca"];
 
 const UNFLATTEN_PATTERNS: &[&str] = &["**/entities/r.*.*.mca/timestamp-header"];
 
-pub(crate) struct EntitiesRegionCrafter;
+pub(crate) struct EntitiesRegionHandler;
 
-impl Handler for EntitiesRegionCrafter {
+impl Handler for EntitiesRegionHandler {
     fn flatten(self, save: &impl OdbReader, storage: &mut impl OdbWriter) -> Result<()> {
         for pattern in FLATTEN_PATTERNS {
             for key in save.glob(pattern)? {

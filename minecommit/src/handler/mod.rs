@@ -5,11 +5,11 @@ mod poi_region;
 mod raw;
 
 use anyhow::Result;
-pub(crate) use chunk_region::ChunkRegionCrafter;
-pub(crate) use entities_region::EntitiesRegionCrafter;
-pub(crate) use gzip_nbt::GzipNbtCrafter;
-pub(crate) use poi_region::PoiRegionCrafter;
-pub(crate) use raw::RawCrafter;
+pub(crate) use chunk_region::ChunkRegionHandler;
+pub(crate) use entities_region::EntitiesRegionHandler;
+pub(crate) use gzip_nbt::GzipNbtHandler;
+pub(crate) use poi_region::PoiRegionHandler;
+pub(crate) use raw::RawHandler;
 use versions::Versioning;
 
 use crate::odb::{OdbReader, OdbWriter};
@@ -20,21 +20,21 @@ pub(crate) trait Handler {
 }
 
 pub(crate) enum CrafterImpl {
-    Raw(RawCrafter),
-    GzipNbt(GzipNbtCrafter),
-    ChunkRegion(ChunkRegionCrafter),
-    EntitiesRegion(EntitiesRegionCrafter),
-    PoiRegion(PoiRegionCrafter),
+    Raw(RawHandler),
+    GzipNbt(GzipNbtHandler),
+    ChunkRegion(ChunkRegionHandler),
+    EntitiesRegion(EntitiesRegionHandler),
+    PoiRegion(PoiRegionHandler),
 }
 
 impl CrafterImpl {
     pub(crate) fn get_crafters(version: Versioning) -> Vec<Self> {
         vec![
-            Self::ChunkRegion(ChunkRegionCrafter {}),
-            Self::EntitiesRegion(EntitiesRegionCrafter {}),
-            Self::PoiRegion(PoiRegionCrafter {}),
-            Self::Raw(RawCrafter {}),
-            Self::GzipNbt(GzipNbtCrafter { version }),
+            Self::ChunkRegion(ChunkRegionHandler {}),
+            Self::EntitiesRegion(EntitiesRegionHandler {}),
+            Self::PoiRegion(PoiRegionHandler {}),
+            Self::Raw(RawHandler {}),
+            Self::GzipNbt(GzipNbtHandler { version }),
         ]
     }
 }

@@ -14,11 +14,11 @@ use crate::{
 
 const GZIP_NBT_GLOB_PATTERNS: &[&str] = &["**/*.dat"];
 
-pub(crate) struct GzipNbtCrafter {
+pub(crate) struct GzipNbtHandler {
     pub(crate) version: Versioning,
 }
 
-impl Handler for GzipNbtCrafter {
+impl Handler for GzipNbtHandler {
     fn flatten(self, save: &impl OdbReader, storage: &mut impl OdbWriter) -> Result<()> {
         for pattern in GZIP_NBT_GLOB_PATTERNS {
             for key in save.glob(pattern)? {

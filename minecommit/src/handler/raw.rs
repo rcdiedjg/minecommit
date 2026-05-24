@@ -5,9 +5,9 @@ use crate::odb::{OdbReader, OdbWriter};
 
 const RAW_GLOB_PATTERNS: &[&str] = &["**/*.png", "**/*.json"];
 
-pub(crate) struct RawCrafter;
+pub(crate) struct RawHandler;
 
-impl Handler for RawCrafter {
+impl Handler for RawHandler {
     fn flatten(self, save: &impl OdbReader, storage: &mut impl OdbWriter) -> Result<()> {
         for pattern in RAW_GLOB_PATTERNS {
             for key in save.glob(pattern)? {
