@@ -5,6 +5,7 @@ mod palette;
 use anyhow::{Context, Result};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use simdnbt::borrow::read;
+use simdnbt::owned;
 use simdnbt::{Deserialize, Serialize};
 use std::io::Cursor;
 
@@ -17,22 +18,26 @@ use mapping::MinecraftDataMapping;
 use nbt::{SectionsDump, restore_chunk, split_chunk};
 
 const FLATTEN_PATTERNS: &[&str] = &["**/region/r.*.*.mca"];
-
 const UNFLATTEN_PATTERNS: &[&str] = &["**/region/r.*.*.mca/timestamp-header"]; // timestamp-header is sentry
+const BIOMES_MAPPING_PATTERN: &str = "minecommit/mapping/biome";
+const BLOCK_STATES_MAPPING_PATTERN: &str = "minecommit/mapping/block_states";
 
 pub(crate) struct ChunkRegionHandler;
 
-impl ChunkRegionHandler {
-    fn build_mapping(save: &impl OdbReader) {
-        todo!()
-    }
-}
-
 impl Handler for ChunkRegionHandler {
     fn flatten(self, save: &impl OdbReader, storage: &mut impl OdbWriter) -> Result<()> {
-        let mapping = MinecraftDataMapping::default();
+        let mut mapping = if let Ok(biomes) = storage.get(BIOMES_MAPPING_PATTERN)
+            && let Ok(block_states) = storage.get(BLOCK_STATES_MAPPING_PATTERN)
+        {
+            let biomes_nbt = owned::read(&mut Cursor::new(&biomes))?;
+            let block_states_nbt = owned::read(&mut Cursor::new(&block_states))?;
+            MinecraftDataMapping::from_nbt(biomes_nbt.unwrap(), block_states_nbt.unwrap())
+        } else {
+            MinecraftDataMapping::default()
+        };
         for pattern in FLATTEN_PATTERNS {
             for key in save.glob(pattern)? {
+                // Parse region file
                 log::info!("Process chunk region file {key}");
                 let data = save.get(&key)?;
                 let filename = key.split('/').next_back().unwrap_or("");
@@ -48,6 +53,62 @@ impl Handler for ChunkRegionHandler {
                 };
                 storage.put(&format!("{key}/timestamp-header"), &timestamp_header)?;
 
+                // Populate mapping from all chunks' section palettes before parallel dump
+                for (_, _, chunk_nbt) in &chunks {
+                    let nbt = load_nbt(Cursor::new(chunk_nbt))?;
+                    if nbt.string("Status").map(|s| s.to_string_lossy())
+                        != Some("minecraft:full".into())
+                    {
+                        continue;
+                    }
+                    if let Some(sections_list) = nbt.list("sections")
+                        && let Some(compounds) = sections_list.compounds()
+                    {
+                        for section in compounds {
+                            if let Some(biomes) = section.compound("biomes")
+                                && let Some(palette) = biomes.list("palette")
+                                && let Some(strings) = palette.strings()
+                            {
+                                for entry in strings {
+                                    mapping.register_biome(&entry.to_str());
+                                }
+                            }
+                            if let Some(block_states) = section.compound("block_states")
+                                && let Some(palette) = block_states.list("palette")
+                                && let Some(compounds) = palette.compounds()
+                            {
+                                for entry in compounds {
+                                    let block_name = entry
+                                        .string("Name")
+                                        .map(|s| s.to_string())
+                                        .unwrap_or_default();
+                                    if let Some(props) = entry.compound("Properties") {
+                                        let props_vec: Vec<(String, String)> = props
+                                            .iter()
+                                            .map(|(k, v)| {
+                                                (
+                                                    k.to_string(),
+                                                    v.string()
+                                                        .map(|s| s.to_string())
+                                                        .unwrap_or_default(),
+                                                )
+                                            })
+                                            .collect();
+                                        let props_refs: Vec<(&str, &str)> = props_vec
+                                            .iter()
+                                            .map(|(k, v)| (k.as_str(), v.as_str()))
+                                            .collect();
+                                        mapping.register_block_state(&block_name, &props_refs);
+                                    } else {
+                                        mapping.register_block_state(&block_name, &[]);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Build objects
                 let result = chunks
                     .into_par_iter()
                     .map(|(chunk_x, chunk_z, nbt)| {
@@ -76,6 +137,7 @@ impl Handler for ChunkRegionHandler {
                     .flatten()
                     .collect::<Vec<_>>();
 
+                // Write objects
                 storage.put_par(
                     result
                         .iter()
@@ -95,11 +157,27 @@ impl Handler for ChunkRegionHandler {
                 )?;
             }
         }
+
+        // Write mappings to storage
+        let (biomes_nbt, block_states_nbt) = mapping.to_nbt();
+        let biomes_dump = dump_nbt(biomes_nbt, 64 * 1024)?;
+        let block_states_dump = dump_nbt(block_states_nbt, 64 * 1024)?;
+        storage.put(BIOMES_MAPPING_PATTERN, &biomes_dump)?;
+        storage.put(BLOCK_STATES_MAPPING_PATTERN, &block_states_dump)?;
+
         Ok(())
     }
 
     fn unflatten(self, save: &mut impl OdbWriter, storage: &impl OdbReader) -> Result<()> {
-        let mapping = MinecraftDataMapping::default();
+        let mapping = if let Ok(biomes) = storage.get(BIOMES_MAPPING_PATTERN)
+            && let Ok(block_states) = storage.get(BLOCK_STATES_MAPPING_PATTERN)
+        {
+            let biomes_nbt = owned::read(&mut Cursor::new(&biomes))?;
+            let block_states_nbt = owned::read(&mut Cursor::new(&block_states))?;
+            MinecraftDataMapping::from_nbt(biomes_nbt.unwrap(), block_states_nbt.unwrap())
+        } else {
+            MinecraftDataMapping::default()
+        };
         for pattern in UNFLATTEN_PATTERNS {
             for ts_key in storage.glob(pattern)? {
                 log::info!("Process chunk region file (timestamp header) {ts_key}");
