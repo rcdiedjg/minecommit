@@ -29,7 +29,6 @@ impl Config {
         }
     }
     pub fn flatten(&self) -> Result<()> {
-        init_mc_data(&self.mc_version);
         let save = LocalFsOdb::from_dir(self.save_dir.to_owned());
         let mut repo = LocalFsOdb::from_dir(self.storage_dir.to_owned());
 
@@ -41,7 +40,6 @@ impl Config {
     }
 
     pub fn unflatten(self) -> Result<()> {
-        init_mc_data(&self.mc_version);
         let mut save = LocalFsOdb::from_dir(self.save_dir.to_owned());
         let repo = LocalFsOdb::from_dir(self.storage_dir.to_owned());
 
@@ -53,7 +51,6 @@ impl Config {
     }
 
     pub fn commit(self, parents: Vec<String>, message: &str, r#ref: Option<String>) -> Result<()> {
-        init_mc_data(&self.mc_version);
         let save = LocalFsOdb::from_dir(self.save_dir.to_owned());
         let mut git = if let Some(from) = parents.first() {
             LocalGitOdb::from_commit(self.storage_dir.to_owned(), from.clone())
@@ -78,7 +75,6 @@ impl Config {
     }
 
     pub fn checkout(self, commit: String) -> Result<()> {
-        init_mc_data(&self.mc_version);
         let mut save = LocalFsOdb::from_dir(self.save_dir.to_owned());
         let git = LocalGitOdb::from_commit(self.storage_dir.to_owned(), commit)?;
 

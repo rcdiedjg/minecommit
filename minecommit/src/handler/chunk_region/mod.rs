@@ -1,3 +1,6 @@
+mod nbt;
+mod palette;
+
 use anyhow::{Context, Result};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use simdnbt::borrow::read;
@@ -5,11 +8,12 @@ use simdnbt::{Deserialize, Serialize};
 use std::io::Cursor;
 
 use super::Handler;
+use crate::handler::chunk_region::palette::MinecraftDataMapping;
 use crate::odb::{OdbReader, OdbWriter};
 use crate::utils::nbt::{dump_nbt, load_nbt, sort_nbt};
-use crate::utils::region::{
-    SectionsDump, parse_xz, read_region, restore_chunk, split_chunk, write_region,
-};
+use crate::utils::region::{parse_xz, read_region, write_region};
+
+use nbt::{SectionsDump, restore_chunk, split_chunk};
 
 const FLATTEN_PATTERNS: &[&str] = &["**/region/r.*.*.mca"];
 
@@ -17,8 +21,14 @@ const UNFLATTEN_PATTERNS: &[&str] = &["**/region/r.*.*.mca/timestamp-header"]; /
 
 pub(crate) struct ChunkRegionHandler;
 
+impl ChunkRegionHandler {
+    fn build_mapping(save: &impl OdbReader) {
+        todo!()
+    }
+}
 impl Handler for ChunkRegionHandler {
     fn flatten(self, save: &impl OdbReader, storage: &mut impl OdbWriter) -> Result<()> {
+        let mapping = MinecraftDataMapping;
         for pattern in FLATTEN_PATTERNS {
             for key in save.glob(pattern)? {
                 log::info!("Process chunk region file {key}");
@@ -50,7 +60,7 @@ impl Handler for ChunkRegionHandler {
                         {
                             return Ok(None);
                         }
-                        let (other, sections) = split_chunk(nbt).with_context(|| {
+                        let (other, sections) = split_chunk(&mapping, nbt).with_context(|| {
                             format!("failed to process chunk ({chunk_x}, {chunk_z}) at file {key}")
                         })?;
                         let other_dump = dump_nbt(sort_nbt(other), other_size)?;
@@ -87,6 +97,7 @@ impl Handler for ChunkRegionHandler {
     }
 
     fn unflatten(self, save: &mut impl OdbWriter, storage: &impl OdbReader) -> Result<()> {
+        let mapping = MinecraftDataMapping;
         for pattern in UNFLATTEN_PATTERNS {
             for ts_key in storage.glob(pattern)? {
                 log::info!("Process chunk region file (timestamp header) {ts_key}");
@@ -146,7 +157,7 @@ impl Handler for ChunkRegionHandler {
                         let sections_dump: SectionsDump = SectionsDump::from_nbt(&nbt)
                             .context("failed to deserialize sections dump")?;
                         let nbt = dump_nbt(
-                            restore_chunk(other, sections_dump)
+                            restore_chunk(&mapping, other, sections_dump)
                                 .with_context(|| format!("failed to restore chunk for {ts_key}"))
                                 .context("failed to restore chunk")?,
                             300 * 1024, // 300 KiB

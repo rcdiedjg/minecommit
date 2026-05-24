@@ -6,10 +6,29 @@ use simdnbt::{
     owned::{NbtCompound, NbtList, NbtTag},
 };
 
-use super::mc_data::{
-    biome_id_from_name, biome_name_from_id, block_name_and_props_from_state_id,
-    block_state_id_from_name_and_props,
-};
+pub struct MinecraftDataMapping;
+
+impl MinecraftDataMapping {
+    fn biome_id_from_name(&self, name: &str) -> Result<u8> {
+        todo!()
+    }
+    fn biome_name_from_id(&self, id: u8) -> Result<&'static str> {
+        todo!()
+    }
+    fn block_state_id_from_name_and_props(
+        &self,
+        name: &str,
+        props: &[(&str, &str)],
+    ) -> Result<u16> {
+        todo!()
+    }
+    fn block_name_and_props_from_state_id(
+        &self,
+        state_id: u16,
+    ) -> Result<(String, Vec<(&'static str, &'static str)>)> {
+        todo!()
+    }
+}
 
 type Cube<T, const SIZE: usize> = [[[T; SIZE]; SIZE]; SIZE];
 
@@ -71,7 +90,7 @@ pub fn load<T: Copy + Default + Eq, const SIZE: usize>(
     (rows, entries)
 }
 
-pub fn dump_biome(nbt: &NbtCompound) -> Result<Box<Cube<u8, 4>>> {
+pub fn dump_biome(mapping: &MinecraftDataMapping, nbt: &NbtCompound) -> Result<Box<Cube<u8, 4>>> {
     let palette_rows = nbt.long_array("data");
     let palette_entries = nbt
         .list("palette")
@@ -82,7 +101,7 @@ pub fn dump_biome(nbt: &NbtCompound) -> Result<Box<Cube<u8, 4>>> {
         .map(|entry| {
             let s = entry.to_string_lossy();
             let key = s.strip_prefix("minecraft:").unwrap_or(&s);
-            biome_id_from_name(key)
+            mapping.biome_id_from_name(key)
         })
         .collect::<Result<Vec<_>>>()?;
     let cube = if let Some(rows) = palette_rows {
@@ -97,13 +116,13 @@ pub fn dump_biome(nbt: &NbtCompound) -> Result<Box<Cube<u8, 4>>> {
     Ok(cube)
 }
 
-pub fn load_biome(cube: Box<Cube<u8, 4>>) -> Result<NbtCompound> {
+pub fn load_biome(mapping: &MinecraftDataMapping, cube: Box<Cube<u8, 4>>) -> Result<NbtCompound> {
     let first = cube[0][0][0];
     let is_homo = cube.iter().flatten().flatten().all(|item| *item == first);
     let kvs = if is_homo {
         let entries = vec![Mutf8String::from_string(format!(
             "minecraft:{}",
-            biome_name_from_id(first)?
+            mapping.biome_name_from_id(first)?
         ))];
         vec![("palette".into(), NbtTag::List(NbtList::from(entries)))]
     } else {
@@ -113,7 +132,7 @@ pub fn load_biome(cube: Box<Cube<u8, 4>>) -> Result<NbtCompound> {
             .map(|&id| {
                 Ok(Mutf8String::from_string(format!(
                     "minecraft:{}",
-                    biome_name_from_id(id)?
+                    mapping.biome_name_from_id(id)?
                 )))
             })
             .collect::<Result<Vec<_>>>()?;
@@ -125,7 +144,7 @@ pub fn load_biome(cube: Box<Cube<u8, 4>>) -> Result<NbtCompound> {
     Ok(NbtCompound::from_values(kvs))
 }
 
-pub fn dump_block(nbt: &NbtCompound) -> Result<Box<Cube<u16, 16>>> {
+pub fn dump_block(mapping: &MinecraftDataMapping, nbt: &NbtCompound) -> Result<Box<Cube<u16, 16>>> {
     let palette_rows = nbt.long_array("data");
     let palette_entries = nbt
         .list("palette")
@@ -155,7 +174,7 @@ pub fn dump_block(nbt: &NbtCompound) -> Result<Box<Cube<u16, 16>>> {
                         Ok((k.to_str(), v.to_str()))
                     })
                     .collect::<Result<Vec<_>>>()?;
-                block_state_id_from_name_and_props(
+                mapping.block_state_id_from_name_and_props(
                     &name,
                     &props_map
                         .iter()
@@ -163,7 +182,7 @@ pub fn dump_block(nbt: &NbtCompound) -> Result<Box<Cube<u16, 16>>> {
                         .collect::<Vec<_>>(),
                 )
             } else {
-                block_state_id_from_name_and_props(&name, &[])
+                mapping.block_state_id_from_name_and_props(&name, &[])
             }
         })
         .collect::<Result<Vec<_>>>()?;
@@ -176,7 +195,7 @@ pub fn dump_block(nbt: &NbtCompound) -> Result<Box<Cube<u16, 16>>> {
     Ok(cube)
 }
 
-pub fn load_block(cube: Box<Cube<u16, 16>>) -> Result<NbtCompound> {
+pub fn load_block(mapping: &MinecraftDataMapping, cube: Box<Cube<u16, 16>>) -> Result<NbtCompound> {
     let count_bits = |n: usize| fast_count_bits(n).max(4);
     let (rows, entries) = load::<u16, 16>(&cube, count_bits);
     let bits = count_bits(entries.len());
@@ -184,7 +203,7 @@ pub fn load_block(cube: Box<Cube<u16, 16>>) -> Result<NbtCompound> {
     let entries = entries
         .iter()
         .map(|&state_id| {
-            let (name, props) = block_name_and_props_from_state_id(state_id)?;
+            let (name, props) = mapping.block_name_and_props_from_state_id(state_id)?;
             let kvs = if props.is_empty() {
                 vec![(
                     "Name".into(),
