@@ -20,11 +20,11 @@ impl MinecraftDataMapping {
                 .insert(biome.to_owned(), self.biome_mapping.len() as u8);
         }
     }
-    pub fn biome_id_from_name(&self, name: &str) -> Result<u8> {
-        todo!()
+    pub fn biome_id_from_name(&self, name: &str) -> Option<u8> {
+        self.biome_mapping.get(name).cloned()
     }
-    pub fn biome_name_from_id(&self, id: u8) -> Result<String> {
-        todo!()
+    pub fn biome_name_from_id(&self, id: u8) -> Option<Biome> {
+        self.biomes.get(id as usize).cloned()
     }
     pub fn register_block_state(&mut self, name: &str, props: &[(&str, &str)]) {
         let key = (
@@ -45,13 +45,19 @@ impl MinecraftDataMapping {
         &self,
         name: &str,
         props: &[(&str, &str)],
-    ) -> Result<u16> {
-        todo!()
+    ) -> Option<u16> {
+        let key = (
+            name.to_string(),
+            props
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect::<Vec<_>>()
+                .into_boxed_slice(),
+        );
+        self.block_state_mapping.get(&key).cloned()
     }
-    pub fn block_name_and_props_from_state_id(
-        &self,
-        state_id: u16,
-    ) -> Result<(String, Vec<(String, String)>)> {
-        todo!()
+
+    pub fn block_name_and_props_from_state_id(&self, state_id: u16) -> Option<BlockState> {
+        self.block_states.get(state_id as usize).cloned()
     }
 }
