@@ -11,7 +11,7 @@ use crate::{
     utils::nbt::{dump_nbt, load_nbt, sort_nbt},
 };
 
-const GZIP_NBT_GLOB_PATTERNS: &[&str] = &["**/*.dat", "**/*.nbt"];
+const GZIP_NBT_GLOB_PATTERNS: &[&str] = &["**/*.dat", "**/*.dat_old", "**/*.nbt"];
 
 pub(crate) struct GzipNbtHandler {}
 
