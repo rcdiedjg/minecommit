@@ -11,12 +11,16 @@ const RAW_GLOB_PATTERNS: &[&str] = &[
     "**/*.toml",
 ];
 
-pub(crate) struct RawHandler;
+pub(crate) struct RawHandler {
+    pub(crate) extra_patterns: Vec<String>,
+}
 
 impl Handler for RawHandler {
     fn flatten(self, save: &impl OdbReader, storage: &mut impl OdbWriter) -> Result<Vec<String>> {
         let mut processed = Vec::new();
-        for pattern in RAW_GLOB_PATTERNS {
+        let builtin = RAW_GLOB_PATTERNS.iter().copied();
+        let extra = self.extra_patterns.iter().map(|s| s.as_str());
+        for pattern in builtin.chain(extra) {
             for key in save.glob(pattern)? {
                 log::info!("Process raw file {key}");
                 let data = save.get(&key)?;
@@ -29,7 +33,9 @@ impl Handler for RawHandler {
 
     fn unflatten(self, save: &mut impl OdbWriter, storage: &impl OdbReader) -> Result<Vec<String>> {
         let mut processed = Vec::new();
-        for pattern in RAW_GLOB_PATTERNS {
+        let builtin = RAW_GLOB_PATTERNS.iter().copied();
+        let extra = self.extra_patterns.iter().map(|s| s.as_str());
+        for pattern in builtin.chain(extra) {
             for key in storage.glob(pattern)? {
                 log::info!("Process raw file {key}");
                 let data = storage.get(&key)?;

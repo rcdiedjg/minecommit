@@ -16,20 +16,22 @@ pub mod utils;
 pub struct Config {
     save_dir: PathBuf,
     storage_dir: PathBuf,
+    extra_patterns: Vec<String>,
 }
 
 impl Config {
-    pub fn new(save_dir: PathBuf, storage_dir: PathBuf) -> Self {
+    pub fn new(save_dir: PathBuf, storage_dir: PathBuf, extra_patterns: Vec<String>) -> Self {
         Self {
             save_dir,
             storage_dir,
+            extra_patterns,
         }
     }
-    pub fn flatten(&self) -> Result<()> {
+    pub fn flatten(self) -> Result<()> {
         let save = LocalFsOdb::from_dir(self.save_dir.to_owned());
         let mut repo = LocalFsOdb::from_dir(self.storage_dir.to_owned());
 
-        for crafter in CrafterImpl::get_crafters() {
+        for crafter in CrafterImpl::get_crafters(self.extra_patterns) {
             crafter.flatten(&save, &mut repo)?;
         }
 
@@ -40,7 +42,7 @@ impl Config {
         let mut save = LocalFsOdb::from_dir(self.save_dir.to_owned());
         let repo = LocalFsOdb::from_dir(self.storage_dir.to_owned());
 
-        for crafter in CrafterImpl::get_crafters() {
+        for crafter in CrafterImpl::get_crafters(self.extra_patterns) {
             crafter.unflatten(&mut save, &repo)?;
         }
 
@@ -61,7 +63,7 @@ impl Config {
         }?;
 
         let mut processed = HashSet::new();
-        for crafter in CrafterImpl::get_crafters() {
+        for crafter in CrafterImpl::get_crafters(self.extra_patterns) {
             processed.extend(crafter.flatten(&save, &mut git)?);
         }
 
@@ -87,7 +89,7 @@ impl Config {
         let mut save = LocalFsOdb::from_dir(self.save_dir.to_owned());
         let git = LocalGitOdb::from_commit(self.storage_dir.to_owned(), commit)?;
 
-        for crafter in CrafterImpl::get_crafters() {
+        for crafter in CrafterImpl::get_crafters(self.extra_patterns) {
             crafter.unflatten(&mut save, &git)?;
         }
 

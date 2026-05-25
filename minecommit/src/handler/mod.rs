@@ -35,12 +35,12 @@ pub(crate) enum CrafterImpl {
 }
 
 impl CrafterImpl {
-    pub(crate) fn get_crafters() -> Vec<Self> {
+    pub(crate) fn get_crafters(extra_patterns: Vec<String>) -> Vec<Self> {
         vec![
             Self::ChunkRegion(ChunkRegionHandler {}),
             Self::EntitiesRegion(EntitiesRegionHandler {}),
             Self::PoiRegion(PoiRegionHandler {}),
-            Self::Raw(RawHandler {}),
+            Self::Raw(RawHandler { extra_patterns }),
             Self::GzipNbt(GzipNbtHandler {}),
         ]
     }
