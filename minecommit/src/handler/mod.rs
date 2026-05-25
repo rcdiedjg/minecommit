@@ -14,8 +14,16 @@ pub(crate) use raw::RawHandler;
 use crate::odb::{OdbReader, OdbWriter};
 
 pub(crate) trait Handler {
-    fn flatten(self, save_dir: &impl OdbReader, storage: &mut impl OdbWriter) -> Result<()>;
-    fn unflatten(self, save_dir: &mut impl OdbWriter, storage: &impl OdbReader) -> Result<()>;
+    fn flatten(
+        self,
+        save_dir: &impl OdbReader,
+        storage: &mut impl OdbWriter,
+    ) -> Result<Vec<String>>;
+    fn unflatten(
+        self,
+        save_dir: &mut impl OdbWriter,
+        storage: &impl OdbReader,
+    ) -> Result<Vec<String>>;
 }
 
 pub(crate) enum CrafterImpl {
@@ -39,7 +47,11 @@ impl CrafterImpl {
 }
 
 impl Handler for CrafterImpl {
-    fn flatten(self, save_dir: &impl OdbReader, storage: &mut impl OdbWriter) -> Result<()> {
+    fn flatten(
+        self,
+        save_dir: &impl OdbReader,
+        storage: &mut impl OdbWriter,
+    ) -> Result<Vec<String>> {
         match self {
             Self::Raw(c) => c.flatten(save_dir, storage),
             Self::GzipNbt(c) => c.flatten(save_dir, storage),
@@ -48,7 +60,11 @@ impl Handler for CrafterImpl {
             Self::PoiRegion(c) => c.flatten(save_dir, storage),
         }
     }
-    fn unflatten(self, save_dir: &mut impl OdbWriter, storage: &impl OdbReader) -> Result<()> {
+    fn unflatten(
+        self,
+        save_dir: &mut impl OdbWriter,
+        storage: &impl OdbReader,
+    ) -> Result<Vec<String>> {
         match self {
             Self::Raw(c) => c.unflatten(save_dir, storage),
             Self::GzipNbt(c) => c.unflatten(save_dir, storage),

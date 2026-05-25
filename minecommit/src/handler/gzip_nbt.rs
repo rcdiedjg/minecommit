@@ -16,7 +16,8 @@ const GZIP_NBT_GLOB_PATTERNS: &[&str] = &["**/*.dat"];
 pub(crate) struct GzipNbtHandler {}
 
 impl Handler for GzipNbtHandler {
-    fn flatten(self, save: &impl OdbReader, storage: &mut impl OdbWriter) -> Result<()> {
+    fn flatten(self, save: &impl OdbReader, storage: &mut impl OdbWriter) -> Result<Vec<String>> {
+        let mut processed = Vec::new();
         for pattern in GZIP_NBT_GLOB_PATTERNS {
             for key in save.glob(pattern)? {
                 log::info!("Process gzip nbt file {key}");
@@ -78,12 +79,15 @@ impl Handler for GzipNbtHandler {
                     dump_nbt(nbt, decompressed.len())?
                 };
                 storage.put(&key, &sorted)?;
+
+                processed.push(key);
             }
         }
-        Ok(())
+        Ok(processed)
     }
 
-    fn unflatten(self, save: &mut impl OdbWriter, storage: &impl OdbReader) -> Result<()> {
+    fn unflatten(self, save: &mut impl OdbWriter, storage: &impl OdbReader) -> Result<Vec<String>> {
+        let mut processed = Vec::new();
         for pattern in GZIP_NBT_GLOB_PATTERNS {
             for key in storage.glob(pattern)? {
                 log::info!("Process gzip nbt file {key}");
@@ -96,9 +100,11 @@ impl Handler for GzipNbtHandler {
                     .finish()
                     .context("failed to finish gzip compression")?;
                 save.put(&key, &compressed)?;
+
+                processed.push(key);
             }
         }
-        Ok(())
+        Ok(processed)
     }
 }
 

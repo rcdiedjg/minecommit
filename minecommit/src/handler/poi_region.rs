@@ -13,7 +13,8 @@ const UNFLATTEN_PATTERNS: &[&str] = &["**/poi/r.*.*.mca/timestamp-header"];
 pub(crate) struct PoiRegionHandler;
 
 impl Handler for PoiRegionHandler {
-    fn flatten(self, save: &impl OdbReader, storage: &mut impl OdbWriter) -> Result<()> {
+    fn flatten(self, save: &impl OdbReader, storage: &mut impl OdbWriter) -> Result<Vec<String>> {
+        let mut processed = Vec::new();
         for pattern in FLATTEN_PATTERNS {
             for key in save.glob(pattern)? {
                 log::info!("Process poi region file {key}");
@@ -47,12 +48,14 @@ impl Handler for PoiRegionHandler {
                     };
                     storage.put(&format!("{key}/c.{chunk_x}.{chunk_z}.nbt"), &nbt)?;
                 }
+                processed.push(key);
             }
         }
-        Ok(())
+        Ok(processed)
     }
 
-    fn unflatten(self, save: &mut impl OdbWriter, storage: &impl OdbReader) -> Result<()> {
+    fn unflatten(self, save: &mut impl OdbWriter, storage: &impl OdbReader) -> Result<Vec<String>> {
+        let mut processed = Vec::new();
         for pattern in UNFLATTEN_PATTERNS {
             for ts_key in storage.glob(pattern)? {
                 log::info!("Process poi region file (timestamp header) {ts_key}");
@@ -73,6 +76,7 @@ impl Handler for PoiRegionHandler {
                         .context("failed to parse chunk coordinates")?;
                     let nbt = storage.get(&chunk_key)?;
                     chunks.push((chunk_x, chunk_z, nbt));
+                    processed.push(chunk_key);
                 }
                 let mut mca_buf = Vec::with_capacity(200 * 1024); // 200KiB
                 write_region(
@@ -87,8 +91,10 @@ impl Handler for PoiRegionHandler {
                 .with_context(|| format!("failed to write region for {ts_key}"))
                 .context("failed to write region")?;
                 save.put(region_key, &mca_buf)?;
+
+                processed.push(ts_key);
             }
         }
-        Ok(())
+        Ok(processed)
     }
 }

@@ -129,7 +129,17 @@ fn main() -> Result<(), anyhow::Error> {
             let size_before = git_count_objects(git_dir.to_owned())
                 .context("failed to count git objects")?
                 .total_size_mib();
-            Config::new(save_dir, git_dir.to_owned()).commit(parents, &message, Some(r#ref))?;
+            let unprocessed =
+                Config::new(save_dir, git_dir.to_owned()).commit(parents, &message, Some(r#ref))?;
+            if unprocessed.len() > 0 {
+                for item in &unprocessed {
+                    log::warn!("Skipped file: {item}");
+                }
+                log::warn!(
+                    "Skipped {} files because they are not catched by any handler",
+                    unprocessed.len()
+                );
+            }
 
             if use_repack {
                 git_count_objects(&git_dir).context("failed to count git objects")?;

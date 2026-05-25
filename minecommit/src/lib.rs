@@ -1,10 +1,10 @@
-use std::path::PathBuf;
+use std::{collections::HashSet, path::PathBuf};
 
 use anyhow::{Context, Result};
 
 use crate::{
     handler::{CrafterImpl, Handler},
-    odb::{LocalFsOdb, LocalGitOdb},
+    odb::{LocalFsOdb, LocalGitOdb, OdbReader},
     utils::cmd::{exec, git_cmd},
 };
 
@@ -47,7 +47,12 @@ impl Config {
         Ok(())
     }
 
-    pub fn commit(self, parents: Vec<String>, message: &str, r#ref: Option<String>) -> Result<()> {
+    pub fn commit(
+        self,
+        parents: Vec<String>,
+        message: &str,
+        r#ref: Option<String>,
+    ) -> Result<Vec<String>> {
         let save = LocalFsOdb::from_dir(self.save_dir.to_owned());
         let mut git = if let Some(from) = parents.first() {
             LocalGitOdb::from_commit(self.storage_dir.to_owned(), from.clone())
@@ -55,9 +60,16 @@ impl Config {
             LocalGitOdb::new(self.storage_dir.to_owned())
         }?;
 
+        let mut processed = HashSet::new();
         for crafter in CrafterImpl::get_crafters() {
-            crafter.flatten(&save, &mut git)?;
+            processed.extend(crafter.flatten(&save, &mut git)?);
         }
+
+        let unprocessed = save
+            .glob("**/*")?
+            .into_iter()
+            .filter(|item| !processed.contains(item))
+            .collect::<Vec<_>>();
 
         let commit = git.commit(parents.as_slice(), message)?;
 
@@ -68,7 +80,7 @@ impl Config {
         } else {
             log::warn!("Dangling commit {commit}");
         }
-        Ok(())
+        Ok(unprocessed)
     }
 
     pub fn checkout(self, commit: String) -> Result<()> {

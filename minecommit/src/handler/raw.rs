@@ -8,25 +8,29 @@ const RAW_GLOB_PATTERNS: &[&str] = &["**/*.png", "**/*.json", "**/*.txt", "**/*.
 pub(crate) struct RawHandler;
 
 impl Handler for RawHandler {
-    fn flatten(self, save: &impl OdbReader, storage: &mut impl OdbWriter) -> Result<()> {
+    fn flatten(self, save: &impl OdbReader, storage: &mut impl OdbWriter) -> Result<Vec<String>> {
+        let mut processed = Vec::new();
         for pattern in RAW_GLOB_PATTERNS {
             for key in save.glob(pattern)? {
                 log::info!("Process raw file {key}");
                 let data = save.get(&key)?;
                 storage.put(&key, &data)?;
+                processed.push(key);
             }
         }
-        Ok(())
+        Ok(processed)
     }
 
-    fn unflatten(self, save: &mut impl OdbWriter, storage: &impl OdbReader) -> Result<()> {
+    fn unflatten(self, save: &mut impl OdbWriter, storage: &impl OdbReader) -> Result<Vec<String>> {
+        let mut processed = Vec::new();
         for pattern in RAW_GLOB_PATTERNS {
             for key in storage.glob(pattern)? {
                 log::info!("Process raw file {key}");
                 let data = storage.get(&key)?;
                 save.put(&key, &data)?;
+                processed.push(key);
             }
         }
-        Ok(())
+        Ok(processed)
     }
 }

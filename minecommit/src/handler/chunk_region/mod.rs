@@ -25,7 +25,7 @@ const BLOCK_STATES_MAPPING_PATTERN: &str = "minecommit/mapping/block_states";
 pub(crate) struct ChunkRegionHandler;
 
 impl Handler for ChunkRegionHandler {
-    fn flatten(self, save: &impl OdbReader, storage: &mut impl OdbWriter) -> Result<()> {
+    fn flatten(self, save: &impl OdbReader, storage: &mut impl OdbWriter) -> Result<Vec<String>> {
         let mut mapping = if let Ok(biomes) = storage.get(BIOMES_MAPPING_PATTERN)
             && let Ok(block_states) = storage.get(BLOCK_STATES_MAPPING_PATTERN)
         {
@@ -35,6 +35,7 @@ impl Handler for ChunkRegionHandler {
         } else {
             MinecraftDataMapping::default()
         };
+        let mut processed = Vec::new();
         for pattern in FLATTEN_PATTERNS {
             for key in save.glob(pattern)? {
                 // Parse region file
@@ -155,6 +156,8 @@ impl Handler for ChunkRegionHandler {
                         })
                         .collect::<Vec<_>>(),
                 )?;
+
+                processed.push(key);
             }
         }
 
@@ -165,10 +168,10 @@ impl Handler for ChunkRegionHandler {
         storage.put(BIOMES_MAPPING_PATTERN, &biomes_dump)?;
         storage.put(BLOCK_STATES_MAPPING_PATTERN, &block_states_dump)?;
 
-        Ok(())
+        Ok(processed)
     }
 
-    fn unflatten(self, save: &mut impl OdbWriter, storage: &impl OdbReader) -> Result<()> {
+    fn unflatten(self, save: &mut impl OdbWriter, storage: &impl OdbReader) -> Result<Vec<String>> {
         let mapping = if let Ok(biomes) = storage.get(BIOMES_MAPPING_PATTERN)
             && let Ok(block_states) = storage.get(BLOCK_STATES_MAPPING_PATTERN)
         {
@@ -178,6 +181,7 @@ impl Handler for ChunkRegionHandler {
         } else {
             MinecraftDataMapping::default()
         };
+        let mut processed = Vec::new();
         for pattern in UNFLATTEN_PATTERNS {
             for ts_key in storage.glob(pattern)? {
                 log::info!("Process chunk region file (timestamp header) {ts_key}");
@@ -260,8 +264,12 @@ impl Handler for ChunkRegionHandler {
                 .with_context(|| format!("failed to write region for {ts_key}"))
                 .context("failed to write region")?;
                 save.put(region_key, &mca_buf)?;
+
+                processed.push(ts_key.to_owned());
+                processed.extend(dump_keys);
+                processed.extend(other_keys);
             }
         }
-        Ok(())
+        Ok(processed)
     }
 }
