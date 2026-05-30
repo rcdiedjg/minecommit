@@ -1,6 +1,5 @@
 import { ActivityGraph } from "@/components/activity-graph"
 import * as React from "react"
-import { TrendingUp } from "lucide-react"
 import {
   CartesianGrid,
   Label,
@@ -15,7 +14,6 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
