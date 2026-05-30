@@ -501,7 +501,7 @@ function formatFullDate(date: string | Date): string {
 
 function CommitGraph({
   commits,
-  truncateHash = 7,
+  truncateHash = 8,
   railWidth = 24,
   className,
   ...props
@@ -614,24 +614,6 @@ function CommitGraph({
                   {row.commit.hash.slice(0, truncateHash)}
                 </code>
                 <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                  {row.commit.author.avatarUrl ? (
-                    <img
-                      src={row.commit.author.avatarUrl}
-                      alt=""
-                      width={16}
-                      height={16}
-                      className="size-4 rounded-full border border-border/60 bg-muted"
-                    />
-                  ) : (
-                    <span className="flex size-4 items-center justify-center rounded-full bg-muted text-[8px] font-bold text-muted-foreground">
-                      {row.commit.author.name
-                        .split(/\s+/)
-                        .map((w) => w[0])
-                        .join("")
-                        .toUpperCase()
-                        .slice(0, 2)}
-                    </span>
-                  )}
                   <span className="hidden sm:inline">
                     {row.commit.author.name}
                   </span>
