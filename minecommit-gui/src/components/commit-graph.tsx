@@ -381,12 +381,12 @@ function CommitDetail({
 
   return (
     <>
-      {React.cloneElement(children as React.ReactElement, {
+      {React.cloneElement(children, {
         onClick: (e: React.MouseEvent) => {
           setPos({ x: e.clientX, y: e.clientY })
           setOpen((o) => !o)
         },
-      })}
+      } as Partial<React.HTMLAttributes<HTMLElement>>)}
       {open &&
         ReactDOM.createPortal(
           <div
