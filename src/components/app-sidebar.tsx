@@ -20,6 +20,7 @@ import {
   History,
   House,
   LayoutDashboard,
+  Settings,
 } from "lucide-react"
 
 export function AppSidebar() {
@@ -73,6 +74,16 @@ export function AppSidebar() {
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton>
+              <Settings />
+              设置
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
     </Sidebar>
   )
 }
