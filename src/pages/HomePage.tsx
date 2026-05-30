@@ -14,7 +14,7 @@ const items = [
     separator: true,
   },
   { icon: <BookUp />, label: "备注提交 / 备份" },
-  { icon: <BookDown />, label: "检出最近提交", separator: true },
+  { icon: <BookDown />, label: "恢复最近提交", separator: true },
   { icon: <HardDriveUpload />, label: "上传 / 推送" },
   { icon: <HardDriveDownload />, label: "下载 / 拉取" },
 ]
