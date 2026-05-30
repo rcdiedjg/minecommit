@@ -1,7 +1,16 @@
 import { ActivityGraph } from "@/components/activity-graph"
 import * as React from "react"
 import { TrendingUp } from "lucide-react"
-import { Label, Pie, PieChart } from "recharts"
+import {
+  CartesianGrid,
+  Label,
+  LabelList,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  XAxis,
+} from "recharts"
 import {
   Card,
   CardContent,
@@ -17,9 +26,7 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart"
 
-export const description = "A donut chart with text"
-
-const chartData = [
+const pieChartData = [
   { browser: "chrome", visitors: 275, fill: "var(--color-chrome)" },
   { browser: "safari", visitors: 200, fill: "var(--color-safari)" },
   { browser: "firefox", visitors: 287, fill: "var(--color-firefox)" },
@@ -27,7 +34,7 @@ const chartData = [
   { browser: "other", visitors: 190, fill: "var(--color-other)" },
 ]
 
-const chartConfig = {
+const pieChartConfig = {
   visitors: {
     label: "Visitors",
   },
@@ -53,9 +60,93 @@ const chartConfig = {
   },
 } satisfies ChartConfig
 
+const lineChartData = [
+  { month: "January", desktop: 186, mobile: 80 },
+  { month: "February", desktop: 305, mobile: 200 },
+  { month: "March", desktop: 237, mobile: 120 },
+  { month: "April", desktop: 73, mobile: 190 },
+  { month: "May", desktop: 209, mobile: 130 },
+  { month: "June", desktop: 214, mobile: 140 },
+]
+
+const lineChartConfig = {
+  desktop: {
+    label: "Desktop",
+    color: "var(--chart-1)",
+  },
+  mobile: {
+    label: "Mobile",
+    color: "var(--chart-2)",
+  },
+} satisfies ChartConfig
+
+export function ChartLineLabel() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Line Chart - Label</CardTitle>
+        <CardDescription>January - June 2024</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ChartContainer config={lineChartConfig}>
+          <LineChart
+            accessibilityLayer
+            data={lineChartData}
+            margin={{
+              top: 20,
+              left: 12,
+              right: 12,
+            }}
+          >
+            <CartesianGrid vertical={false} />
+            <XAxis
+              dataKey="month"
+              tickLine={false}
+              axisLine={false}
+              tickMargin={8}
+              tickFormatter={(value) => value.slice(0, 3)}
+            />
+            <ChartTooltip
+              cursor={false}
+              content={<ChartTooltipContent indicator="line" />}
+            />
+            <Line
+              dataKey="desktop"
+              type="natural"
+              stroke="var(--color-desktop)"
+              strokeWidth={2}
+              dot={{
+                fill: "var(--color-desktop)",
+              }}
+              activeDot={{
+                r: 6,
+              }}
+            >
+              <LabelList
+                position="top"
+                offset={12}
+                className="fill-foreground"
+                fontSize={12}
+              />
+            </Line>
+          </LineChart>
+        </ChartContainer>
+      </CardContent>
+      <CardFooter className="flex-col items-start gap-2 text-sm">
+        <div className="flex gap-2 leading-none font-medium">
+          Trending up by 5.2% this month <TrendingUp className="h-4 w-4" />
+        </div>
+        <div className="leading-none text-muted-foreground">
+          Showing total visitors for the last 6 months
+        </div>
+      </CardFooter>
+    </Card>
+  )
+}
+
 export function ChartPieDonutText() {
   const totalVisitors = React.useMemo(() => {
-    return chartData.reduce((acc, curr) => acc + curr.visitors, 0)
+    return pieChartData.reduce((acc, curr) => acc + curr.visitors, 0)
   }, [])
 
   return (
@@ -66,7 +157,7 @@ export function ChartPieDonutText() {
       </CardHeader>
       <CardContent className="flex-1 pb-0">
         <ChartContainer
-          config={chartConfig}
+          config={pieChartConfig}
           className="mx-auto aspect-square max-h-62.5"
         >
           <PieChart>
@@ -75,7 +166,7 @@ export function ChartPieDonutText() {
               content={<ChartTooltipContent hideLabel />}
             />
             <Pie
-              data={chartData}
+              data={pieChartData}
               dataKey="visitors"
               nameKey="browser"
               innerRadius={60}
@@ -151,11 +242,12 @@ const contributonData = [
 
 export function DashboardPage() {
   return (
-    <div className="flex w-full flex-row">
+    <div className="flex w-full flex-col">
       <div className="flex w-full">
         <ActivityGraph data={contributonData} />
         <ChartPieDonutText />
       </div>
+      <ChartLineLabel />
     </div>
   )
 }
