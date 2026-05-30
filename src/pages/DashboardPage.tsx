@@ -3,7 +3,6 @@ import * as React from "react"
 import {
   CartesianGrid,
   Label,
-  LabelList,
   Line,
   LineChart,
   Pie,
@@ -25,55 +24,40 @@ import {
 } from "@/components/ui/chart"
 
 const pieChartData = [
-  { browser: "chrome", visitors: 275, fill: "var(--color-chrome)" },
-  { browser: "safari", visitors: 200, fill: "var(--color-safari)" },
-  { browser: "firefox", visitors: 287, fill: "var(--color-firefox)" },
-  { browser: "edge", visitors: 173, fill: "var(--color-edge)" },
-  { browser: "other", visitors: 190, fill: "var(--color-other)" },
+  { tag: "save", space: 413.88, fill: "var(--color-save)" },
+  { tag: "git", space: 388.54, fill: "var(--color-git)" },
 ]
 
 const pieChartConfig = {
-  visitors: {
-    label: "Visitors",
+  total: {
+    label: "MiB",
   },
-  chrome: {
-    label: "Chrome",
+  save: {
+    label: "存档",
     color: "var(--chart-1)",
   },
-  safari: {
-    label: "Safari",
+  git: {
+    label: "Git仓库",
     color: "var(--chart-2)",
-  },
-  firefox: {
-    label: "Firefox",
-    color: "var(--chart-3)",
-  },
-  edge: {
-    label: "Edge",
-    color: "var(--chart-4)",
-  },
-  other: {
-    label: "Other",
-    color: "var(--chart-5)",
   },
 } satisfies ChartConfig
 
 const lineChartData = [
-  { month: "January", desktop: 186, mobile: 80 },
-  { month: "February", desktop: 305, mobile: 200 },
-  { month: "March", desktop: 237, mobile: 120 },
-  { month: "April", desktop: 73, mobile: 190 },
-  { month: "May", desktop: 209, mobile: 130 },
-  { month: "June", desktop: 214, mobile: 140 },
+  { commit: "70edc4cb", save: 231.84, git: 210.48 },
+  { commit: "34e5080f", save: 235.96, git: 229.31 },
+  { commit: "1ae16ce9", save: 283.18, git: 245.05 },
+  { commit: "a0be5c69", save: 368.39, git: 311.12 },
+  { commit: "f130a04d", save: 389.37, git: 357.98 },
+  { commit: "fedaab7d", save: 400.11, git: 388.54 },
 ]
 
 const lineChartConfig = {
-  desktop: {
-    label: "Desktop",
+  save: {
+    label: "存档",
     color: "var(--chart-1)",
   },
-  mobile: {
-    label: "Mobile",
+  git: {
+    label: "Git仓库",
     color: "var(--chart-2)",
   },
 } satisfies ChartConfig
@@ -82,8 +66,10 @@ export function ChartLineLabel() {
   return (
     <Card className="flex-1">
       <CardHeader>
-        <CardTitle>Line Chart - Label</CardTitle>
-        <CardDescription>January - June 2024</CardDescription>
+        <CardTitle>历史空间占用</CardTitle>
+        <CardDescription>
+          每次提交时存档和 Git 仓库大小（以 MiB 记）
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <ChartContainer config={lineChartConfig} className="max-h-62.5 w-full">
@@ -98,7 +84,7 @@ export function ChartLineLabel() {
           >
             <CartesianGrid vertical={false} />
             <XAxis
-              dataKey="month"
+              dataKey="commit"
               tickLine={false}
               axisLine={false}
               tickMargin={8}
@@ -109,24 +95,29 @@ export function ChartLineLabel() {
               content={<ChartTooltipContent indicator="line" />}
             />
             <Line
-              dataKey="desktop"
+              dataKey="save"
               type="natural"
-              stroke="var(--color-desktop)"
+              stroke="var(--chart-1)"
               strokeWidth={2}
               dot={{
-                fill: "var(--color-desktop)",
+                fill: "var(--chart-1)",
               }}
               activeDot={{
                 r: 6,
               }}
-            >
-              <LabelList
-                position="top"
-                offset={12}
-                className="fill-foreground"
-                fontSize={12}
-              />
-            </Line>
+            />
+            <Line
+              dataKey="git"
+              type="natural"
+              stroke="var(--chart-2)"
+              strokeWidth={2}
+              dot={{
+                fill: "var(--chart-2)",
+              }}
+              activeDot={{
+                r: 6,
+              }}
+            />
           </LineChart>
         </ChartContainer>
       </CardContent>
@@ -135,15 +126,15 @@ export function ChartLineLabel() {
 }
 
 export function ChartPieDonutText() {
-  const totalVisitors = React.useMemo(() => {
-    return pieChartData.reduce((acc, curr) => acc + curr.visitors, 0)
+  const totalSpace = React.useMemo(() => {
+    return pieChartData.reduce((acc, curr) => acc + curr.space, 0)
   }, [])
 
   return (
     <Card className="flex w-96 flex-col">
       <CardHeader className="items-center pb-0">
-        <CardTitle>Pie Chart - Donut with Text</CardTitle>
-        <CardDescription>January - June 2024</CardDescription>
+        <CardTitle>当前空间占用</CardTitle>
+        <CardDescription>存档和 Git 仓库大小（以 MiB 记）</CardDescription>
       </CardHeader>
       <CardContent className="flex-1 pb-0">
         <ChartContainer
@@ -157,8 +148,8 @@ export function ChartPieDonutText() {
             />
             <Pie
               data={pieChartData}
-              dataKey="visitors"
-              nameKey="browser"
+              dataKey="space"
+              nameKey="tag"
               innerRadius={60}
               strokeWidth={5}
             >
@@ -177,14 +168,14 @@ export function ChartPieDonutText() {
                           y={viewBox.cy}
                           className="fill-foreground text-3xl font-bold"
                         >
-                          {totalVisitors.toLocaleString()}
+                          {totalSpace.toLocaleString()}
                         </tspan>
                         <tspan
                           x={viewBox.cx}
                           y={(viewBox.cy || 0) + 24}
                           className="fill-muted-foreground"
                         >
-                          Visitors
+                          MiB
                         </tspan>
                       </text>
                     )
@@ -200,37 +191,47 @@ export function ChartPieDonutText() {
 }
 
 const contributonData = [
-  { date: "2026-03-11", count: 5 },
-  { date: "2026-03-12", count: 5 },
-  { date: "2026-03-13", count: 1 },
-  { date: "2026-03-14", count: 5 },
-  { date: "2026-03-15", count: 1 },
-  { date: "2026-03-16", count: 0 },
-  { date: "2026-03-17", count: 3 },
-  { date: "2026-03-18", count: 5 },
-  { date: "2026-03-19", count: 0 },
-  { date: "2026-03-20", count: 2 },
-  { date: "2026-03-21", count: 5 },
-  { date: "2026-03-22", count: 3 },
-  { date: "2026-03-23", count: 0 },
-  { date: "2026-03-24", count: 3 },
-  { date: "2026-03-25", count: 3 },
-  { date: "2026-03-26", count: 5 },
-  { date: "2026-03-27", count: 0 },
-  { date: "2026-03-28", count: 5 },
-  { date: "2026-03-29", count: 0 },
-  { date: "2026-03-30", count: 5 },
+  { date: "2026-05-11", count: 5 },
+  { date: "2026-05-12", count: 5 },
+  { date: "2026-05-13", count: 1 },
+  { date: "2026-05-14", count: 5 },
+  { date: "2026-05-15", count: 1 },
+  { date: "2026-05-16", count: 0 },
+  { date: "2026-05-17", count: 3 },
+  { date: "2026-05-18", count: 5 },
+  { date: "2026-05-19", count: 0 },
+  { date: "2026-05-20", count: 2 },
+  { date: "2026-05-21", count: 4 },
+  { date: "2026-05-22", count: 3 },
+  { date: "2026-05-23", count: 0 },
+  { date: "2026-05-24", count: 3 },
+  { date: "2026-05-25", count: 3 },
+  { date: "2026-05-26", count: 5 },
+  { date: "2026-05-27", count: 0 },
+  { date: "2026-05-28", count: 5 },
+  { date: "2026-05-29", count: 0 },
+  { date: "2026-05-30", count: 5 },
 ]
 
 function CardActivityGraph() {
   return (
     <Card className="flex flex-col">
       <CardHeader className="items-center pb-0">
-        <CardTitle>Pie Chart - Donut with Text</CardTitle>
-        <CardDescription>January - June 2024</CardDescription>
+        <CardTitle>活动热点图</CardTitle>
+        <CardDescription>每个格子颜色表示当天的工作量</CardDescription>
       </CardHeader>
       <CardContent className="flex-1 pb-0">
-        <ActivityGraph data={contributonData} />
+        <ActivityGraph
+          data={contributonData}
+          colorScale={[
+            "bg-chart-1 dark:bg-chart-5",
+            "bg-chart-2 dark:bg-chart-4",
+            "bg-chart-3 dark:bg-chart-3",
+            "bg-chart-4 dark:bg-chart-2",
+            "bg-chart-5 dark:bg-chart-1",
+          ]}
+          blockRadius={4}
+        />
       </CardContent>
     </Card>
   )
@@ -238,11 +239,11 @@ function CardActivityGraph() {
 export function DashboardPage() {
   return (
     <div className="flex w-full flex-col gap-4 p-4">
-      <CardActivityGraph />
       <div className="flex flex-row gap-4">
         <ChartPieDonutText />
         <ChartLineLabel />
       </div>
+      <CardActivityGraph />
     </div>
   )
 }
