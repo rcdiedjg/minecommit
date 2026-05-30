@@ -2,6 +2,7 @@
 members = [
     "minecommit",
     "minecommit-cli",
+    "minecommit-gui/src-tauri",
 ]
 resolver = "3"
 
