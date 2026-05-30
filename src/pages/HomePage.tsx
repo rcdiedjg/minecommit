@@ -114,15 +114,10 @@ function RestoreDialog({
             </li>
           </ul>
           <DialogFooter>
-            <a
-              href="#"
-              className="self-center text-xs font-medium text-muted-foreground underline underline-offset-2"
-            >
-              全部提交
-            </a>{" "}
             <DialogClose
               render={<Button variant="outline">取消</Button>}
             ></DialogClose>
+            <Button variant="secondary">全部提交</Button>
             <Button type="submit">恢复</Button>
           </DialogFooter>
         </DialogContent>
