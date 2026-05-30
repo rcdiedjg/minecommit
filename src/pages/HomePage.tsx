@@ -47,7 +47,7 @@ function CommitDialog({
               />
             </Field>
             <Field>
-              <Label htmlFor="name">玩家昵称</Label>
+              <Label htmlFor="name">你的游戏昵称</Label>
               <Input
                 id="name"
                 name="name"
@@ -76,8 +76,56 @@ function CommitDialog({
   )
 }
 
+function RestoreDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <form>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>确定要恢复以下提交吗？</DialogTitle>
+          </DialogHeader>
+          <ul className="ml-6 list-disc [&>li]:mt-2">
+            <li>
+              <span>时间</span>: 2026/05/30 11:27:24 +0800
+            </li>
+            <li>
+              <span>ID</span>: 5694bb8ccd107e3892ea565b056afa5de941fe47
+            </li>
+            <li>
+              <span>作者</span>: HairlessVillager
+              &lt;hairlessvillager@foxmail.com&gt;
+            </li>
+            <li>
+              <span>信息</span>: 刷怪塔完工
+            </li>
+          </ul>
+          <DialogFooter>
+            <a
+              href="#"
+              className="self-center text-xs font-medium text-muted-foreground underline underline-offset-2"
+            >
+              全部提交
+            </a>{" "}
+            <DialogClose
+              render={<Button variant="outline">取消</Button>}
+            ></DialogClose>
+            <Button type="submit">恢复</Button>
+          </DialogFooter>
+        </DialogContent>
+      </form>
+    </Dialog>
+  )
+}
+
 export function HomePage() {
-  const [dialogOpen, setDialogOpen] = useState(false)
+  const [commitDialogOpen, setCommitDialogOpen] = useState(false)
+  const [restoreDialogOpen, setRestoreDialogOpen] = useState(false)
 
   const items = [
     {
@@ -88,9 +136,14 @@ export function HomePage() {
     {
       icon: <BookUp />,
       label: "备注提交 / 备份",
-      onClick: () => setDialogOpen(true),
+      onClick: () => setCommitDialogOpen(true),
     },
-    { icon: <BookDown />, label: "恢复最近提交", separator: true },
+    {
+      icon: <BookDown />,
+      label: "恢复最近提交",
+      onClick: () => setRestoreDialogOpen(true),
+      separator: true,
+    },
     { icon: <HardDriveUpload />, label: "上传 / 推送" },
     { icon: <HardDriveDownload />, label: "下载 / 拉取" },
   ]
@@ -98,7 +151,14 @@ export function HomePage() {
   return (
     <div className="flex w-full items-center justify-center">
       <Dock items={items} />
-      <CommitDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+      <CommitDialog
+        open={commitDialogOpen}
+        onOpenChange={setCommitDialogOpen}
+      />
+      <RestoreDialog
+        open={restoreDialogOpen}
+        onOpenChange={setRestoreDialogOpen}
+      />
     </div>
   )
 }
