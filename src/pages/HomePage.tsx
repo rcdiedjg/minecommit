@@ -29,6 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { RollingLogDialog } from "@/components/rolling-log"
 
 function CommitDialog({
   open,
@@ -314,6 +315,7 @@ export function HomePage() {
       />
       <PushDialog open={pushDialogOpen} onOpenChange={setPushDialogOpen} />
       <PullDialog open={pullDialogOpen} onOpenChange={setPullDialogOpen} />
+      <RollingLogDialog />
     </div>
   )
 }
