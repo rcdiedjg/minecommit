@@ -14,11 +14,11 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu"
 import { DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { ChevronDown } from "lucide-react"
+import { ChevronDown, HardDrive } from "lucide-react"
 
 export function AppSidebar() {
   return (
-    <Sidebar>
+    <Sidebar collapsible="icon">
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
@@ -26,14 +26,21 @@ export function AppSidebar() {
               <DropdownMenuTrigger
                 render={
                   <SidebarMenuButton>
-                    Select Workspace
+                    <HardDrive />
+                    选择存档
                     <ChevronDown className="ml-auto" />
                   </SidebarMenuButton>
                 }
               />
               <DropdownMenuContent className="w-[--radix-popper-anchor-width]">
                 <DropdownMenuItem>
-                  <span>Acme Inc</span>
+                  <span>存档 1</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  <span>存档 2</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  <span>存档 3</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
