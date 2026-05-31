@@ -29,12 +29,10 @@ impl Handler for ChunkRegionHandler {
                 let data = save.get(&key)?;
                 let filename = key.split('/').next_back().unwrap_or("");
                 let (region_x, region_z) = parse_xz(filename)
-                    .with_context(|| format!("failed to parse (x,z) from {key}"))
-                    .context("failed to parse region coordinates")?;
+                    .with_context(|| format!("failed to parse region coordinates from {key}"))?;
                 let Some((timestamp_header, chunks)) =
                     read_region(Cursor::new(data), region_x, region_z)
-                        .with_context(|| format!("failed to read region from {key}"))
-                        .context("failed to read region")?
+                        .with_context(|| format!("failed to read region from {key}"))?
                 else {
                     processed.push(key);
                     continue;
@@ -107,8 +105,7 @@ impl Handler for ChunkRegionHandler {
                 };
                 let filename = region_key.split('/').next_back().unwrap_or("");
                 let (region_x, region_z) = parse_xz(filename)
-                    .with_context(|| format!("failed to parse (x,z) from {ts_key}"))
-                    .context("failed to parse region coordinates")?;
+                    .with_context(|| format!("failed to parse region coordinates from {ts_key}"))?;
                 let timestamp_header = storage.get(&ts_key)?;
 
                 let other_pattern = format!("{region_key}/other/c.*.*.nbt");
@@ -178,8 +175,7 @@ impl Handler for ChunkRegionHandler {
                     chunks,
                     Cursor::new(&mut mca_buf),
                 )
-                .with_context(|| format!("failed to write region for {ts_key}"))
-                .context("failed to write region")?;
+                .with_context(|| format!("failed to write region for {ts_key}"))?;
                 save.put(region_key, &mca_buf)?;
 
                 processed.push(ts_key.to_owned());

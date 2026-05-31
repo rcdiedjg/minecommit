@@ -94,10 +94,7 @@ pub fn biome_palette_names(nbt: &NbtCompound) -> Result<Vec<String>> {
 /// Unpack biome data from NBT into a 64-byte flat array.  Each byte is
 /// obtained by translating the local palette index through `local_to_merged`
 /// so callers can produce merged-indexed data in one shot.
-pub fn dump_biome_data(
-    nbt: &NbtCompound,
-    local_to_merged: &[u8],
-) -> Result<Box<[u8; 64]>> {
+pub fn dump_biome_data(nbt: &NbtCompound, local_to_merged: &[u8]) -> Result<Box<[u8; 64]>> {
     let cube: Box<Cube<u8, 4>> = if let Some(rows) = nbt.long_array("data") {
         unpack_palette::<u8, 4>(bytemuck::cast_slice(rows), local_to_merged, fast_count_bits)
     } else {
@@ -125,9 +122,7 @@ pub fn load_biome(palette: Vec<String>, data: Box<[u8; 64]>) -> Result<NbtCompou
         })?;
         vec![(
             "palette".into(),
-            NbtTag::List(NbtList::from(vec![Mutf8String::from_string(
-                entry.clone(),
-            )])),
+            NbtTag::List(NbtList::from(vec![Mutf8String::from_string(entry.clone())])),
         )]
     } else {
         let rows = pack_cube(&cube, palette.len(), fast_count_bits);
@@ -187,10 +182,7 @@ pub fn block_palette_entries(nbt: &NbtCompound) -> Result<Vec<BlockStateEntry>> 
 /// Unpack block-state data from NBT into a 4096-u16 flat array.  Each u16
 /// is obtained by translating the local palette index through
 /// `local_to_merged`.
-pub fn dump_block_data(
-    nbt: &NbtCompound,
-    local_to_merged: &[u16],
-) -> Result<Box<[u16; 4096]>> {
+pub fn dump_block_data(nbt: &NbtCompound, local_to_merged: &[u16]) -> Result<Box<[u16; 4096]>> {
     let count_bits = |n: usize| fast_count_bits(n).max(4);
     let cube: Box<Cube<u16, 16>> = if let Some(rows) = nbt.long_array("data") {
         unpack_palette::<u16, 16>(bytemuck::cast_slice(rows), local_to_merged, count_bits)

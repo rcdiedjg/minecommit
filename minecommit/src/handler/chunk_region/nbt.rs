@@ -5,7 +5,10 @@ use simdnbt::borrow;
 use simdnbt::owned::{self, BaseNbt, NbtCompound, NbtList, NbtTag};
 use simdnbt::{Deserialize, DeserializeError, Serialize};
 
-use super::palette::{BlockStateEntry, biome_palette_names, block_palette_entries, dump_biome_data, dump_block_data, load_biome, load_block};
+use super::palette::{
+    BlockStateEntry, biome_palette_names, block_palette_entries, dump_biome_data, dump_block_data,
+    load_biome, load_block,
+};
 
 pub fn split_chunk(nbt: BaseNbt) -> Result<(BaseNbt, SectionsDump)> {
     let name = nbt.name().to_owned();
@@ -57,9 +60,9 @@ fn dump_sections(sections: &NbtList) -> Result<SectionsDump> {
     }
     let mut metas: Vec<SecMeta> = Vec::with_capacity(sections_len);
     for (idx, section) in sections_compounds.iter().enumerate() {
-        let y = section.byte("Y").with_context(|| {
-            format!("missing NBT byte 'sections.{idx}.Y', got: {section:#?}")
-        })?;
+        let y = section
+            .byte("Y")
+            .with_context(|| format!("missing NBT byte 'sections.{idx}.Y', got: {section:#?}"))?;
         if let Some(biome) = section.compound("biomes")
             && let Some(block_states) = section.compound("block_states")
         {
@@ -117,11 +120,11 @@ fn dump_sections(sections: &NbtList) -> Result<SectionsDump> {
 
     // Pass 2 — unpack data directly with merged-index maps.
     let mut sections = Vec::with_capacity(metas.len());
-    for (((section, meta), biome_map), block_map) in
-        sections_compounds.iter()
-            .zip(metas.into_iter())
-            .zip(biome_maps.into_iter())
-            .zip(block_maps.into_iter())
+    for (((section, meta), biome_map), block_map) in sections_compounds
+        .iter()
+        .zip(metas.into_iter())
+        .zip(biome_maps.into_iter())
+        .zip(block_maps.into_iter())
     {
         if !meta.has_palettes {
             continue;
@@ -163,7 +166,8 @@ fn load_sections(dump: SectionsDump) -> Result<NbtList> {
             }
 
             // Build local sub-palettes and remap tables
-            let mut biome_sub: Vec<String> = Vec::with_capacity(used_biomes.iter().filter(|&&x| x).count());
+            let mut biome_sub: Vec<String> =
+                Vec::with_capacity(used_biomes.iter().filter(|&&x| x).count());
             let mut biome_remap: Vec<u8> = vec![0; dump.biome_palette.len()];
             for (i, used) in used_biomes.iter().enumerate() {
                 if *used {
@@ -172,7 +176,8 @@ fn load_sections(dump: SectionsDump) -> Result<NbtList> {
                 }
             }
 
-            let mut block_sub: Vec<BlockStateEntry> = Vec::with_capacity(used_blocks.iter().filter(|&&x| x).count());
+            let mut block_sub: Vec<BlockStateEntry> =
+                Vec::with_capacity(used_blocks.iter().filter(|&&x| x).count());
             let mut block_remap: Vec<u16> = vec![0; dump.block_palette.len()];
             for (i, used) in used_blocks.iter().enumerate() {
                 if *used {
@@ -193,8 +198,14 @@ fn load_sections(dump: SectionsDump) -> Result<NbtList> {
 
             let kvs = vec![
                 ("Y".into(), owned::NbtTag::Byte(section.y)),
-                ("biomes".into(), owned::NbtTag::Compound(load_biome(biome_sub, biome_data)?)),
-                ("block_states".into(), owned::NbtTag::Compound(load_block(block_sub, block_data)?)),
+                (
+                    "biomes".into(),
+                    owned::NbtTag::Compound(load_biome(biome_sub, biome_data)?),
+                ),
+                (
+                    "block_states".into(),
+                    owned::NbtTag::Compound(load_block(block_sub, block_data)?),
+                ),
             ];
             Ok(NbtCompound::from_values(kvs))
         })
@@ -216,7 +227,10 @@ impl Serialize for Section {
         if let Some(tag) = simdnbt::ToNbtTag::to_optional_nbt_tag(self.y) {
             nbt.insert("y", tag);
         }
-        nbt.insert("biome_data", owned::NbtTag::ByteArray(self.biome_data.to_vec()));
+        nbt.insert(
+            "biome_data",
+            owned::NbtTag::ByteArray(self.biome_data.to_vec()),
+        );
         nbt.insert(
             "block_data",
             owned::NbtTag::List(NbtList::from(
@@ -234,14 +248,15 @@ impl Serialize for Section {
 impl Deserialize for Section {
     fn from_compound(nbt: borrow::NbtCompound) -> Result<Self, DeserializeError> {
         Ok(Self {
-            y: simdnbt::FromNbtTag::from_optional_nbt_tag(nbt.get("y"))?.ok_or(
-                DeserializeError::MismatchedFieldType("Section::y".into()),
-            )?,
+            y: simdnbt::FromNbtTag::from_optional_nbt_tag(nbt.get("y"))?
+                .ok_or(DeserializeError::MismatchedFieldType("Section::y".into()))?,
 
             biome_data: {
-                let arr = nbt.byte_array("biome_data").ok_or(
-                    DeserializeError::MismatchedFieldType("Section::biome_data".into()),
-                )?;
+                let arr =
+                    nbt.byte_array("biome_data")
+                        .ok_or(DeserializeError::MismatchedFieldType(
+                            "Section::biome_data".into(),
+                        ))?;
                 let vec = arr.to_owned();
                 Box::<[u8; 64]>::try_from(vec.into_boxed_slice()).map_err(|_| {
                     DeserializeError::MismatchedFieldType("Section::biome_data (bad length)".into())
@@ -249,17 +264,17 @@ impl Deserialize for Section {
             },
 
             block_data: {
-                let list = nbt.list("block_data").ok_or(
-                    DeserializeError::MismatchedFieldType("Section::block_data".into()),
-                )?;
-                let shorts = list.shorts().ok_or(
-                    DeserializeError::MismatchedFieldType("Section::block_data".into()),
-                )?;
+                let list = nbt
+                    .list("block_data")
+                    .ok_or(DeserializeError::MismatchedFieldType(
+                        "Section::block_data".into(),
+                    ))?;
+                let shorts = list.shorts().ok_or(DeserializeError::MismatchedFieldType(
+                    "Section::block_data".into(),
+                ))?;
                 let vec: Vec<u16> = shorts.iter().map(|&x| x as u16).collect();
                 Box::<[u16; 4096]>::try_from(vec.into_boxed_slice()).map_err(|_| {
-                    DeserializeError::MismatchedFieldType(
-                        "Section::block_data (bad length)".into(),
-                    )
+                    DeserializeError::MismatchedFieldType("Section::block_data (bad length)".into())
                 })?
             },
         })
@@ -379,33 +394,35 @@ impl Deserialize for SectionsDump {
     fn from_compound(nbt: borrow::NbtCompound) -> Result<Self, DeserializeError> {
         Ok(Self {
             biome_palette: {
-                let list = nbt.list("biome_palette").ok_or(
-                    DeserializeError::MismatchedFieldType(
-                        "SectionsDump::biome_palette".into(),
-                    ),
-                )?;
-                let strings = list.strings().ok_or(
-                    DeserializeError::MismatchedFieldType(
-                        "SectionsDump::biome_palette".into(),
-                    ),
-                )?;
+                let list =
+                    nbt.list("biome_palette")
+                        .ok_or(DeserializeError::MismatchedFieldType(
+                            "SectionsDump::biome_palette".into(),
+                        ))?;
+                let strings = list.strings().ok_or(DeserializeError::MismatchedFieldType(
+                    "SectionsDump::biome_palette".into(),
+                ))?;
                 strings.iter().map(|s| s.to_string()).collect()
             },
             block_palette: {
-                let list = nbt.list("block_palette").ok_or(
-                    DeserializeError::MismatchedFieldType(
-                        "SectionsDump::block_palette".into(),
-                    ),
-                )?;
+                let list =
+                    nbt.list("block_palette")
+                        .ok_or(DeserializeError::MismatchedFieldType(
+                            "SectionsDump::block_palette".into(),
+                        ))?;
                 block_palette_from_nbt_tags(list)?
             },
             sections: {
-                let list = nbt.list("sections").ok_or(
-                    DeserializeError::MismatchedFieldType("SectionsDump::sections".into()),
-                )?;
-                let compounds = list.compounds().ok_or(
-                    DeserializeError::MismatchedFieldType("SectionsDump::sections".into()),
-                )?;
+                let list = nbt
+                    .list("sections")
+                    .ok_or(DeserializeError::MismatchedFieldType(
+                        "SectionsDump::sections".into(),
+                    ))?;
+                let compounds = list
+                    .compounds()
+                    .ok_or(DeserializeError::MismatchedFieldType(
+                        "SectionsDump::sections".into(),
+                    ))?;
                 compounds
                     .into_iter()
                     .map(|c| Section::from_compound(c))

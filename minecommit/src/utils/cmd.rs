@@ -50,7 +50,11 @@ pub fn exec(mut cmd: Command, stdin: Option<String>) -> Result<String> {
     for line in stdout.lines() {
         log::trace!("stdout: {line:?}");
     }
-    anyhow::ensure!(out.status.success(), "command {cmd:?} status is failed");
+    anyhow::ensure!(
+        out.status.success(),
+        "command {cmd:?} failed: {}",
+        stderr.trim()
+    );
     Ok(stdout)
 }
 
@@ -109,15 +113,53 @@ pub fn git_count_objects(git_dir: impl AsRef<OsStr>) -> Result<RepoStats> {
         if let Some((key, val)) = line.split_once(": ") {
             let val = val.trim();
             match key {
-                "count" => stats.count = val.parse().unwrap_or(0),
-                "size" => stats.size_mib = val.parse::<f64>().unwrap_or(0.0) / 1024.0,
-                "in-pack" => stats.in_pack = val.parse().unwrap_or(0),
-                "packs" => stats.packs = val.parse().unwrap_or(0),
-                "size-pack" => stats.size_pack_mib = val.parse::<f64>().unwrap_or(0.0) / 1024.0,
-                "prune-packable" => stats.prune_packable = val.parse().unwrap_or(0),
-                "garbage" => stats.garbage = val.parse().unwrap_or(0),
+                "count" => {
+                    stats.count = val.parse().unwrap_or_else(|e| {
+                        log::warn!("Failed to parse git count-objects field 'count': {e}");
+                        0
+                    })
+                }
+                "size" => {
+                    stats.size_mib = val.parse::<f64>().unwrap_or_else(|e| {
+                        log::warn!("Failed to parse git count-objects field 'size': {e}");
+                        0.0
+                    }) / 1024.0
+                }
+                "in-pack" => {
+                    stats.in_pack = val.parse().unwrap_or_else(|e| {
+                        log::warn!("Failed to parse git count-objects field 'in-pack': {e}");
+                        0
+                    })
+                }
+                "packs" => {
+                    stats.packs = val.parse().unwrap_or_else(|e| {
+                        log::warn!("Failed to parse git count-objects field 'packs': {e}");
+                        0
+                    })
+                }
+                "size-pack" => {
+                    stats.size_pack_mib = val.parse::<f64>().unwrap_or_else(|e| {
+                        log::warn!("Failed to parse git count-objects field 'size-pack': {e}");
+                        0.0
+                    }) / 1024.0
+                }
+                "prune-packable" => {
+                    stats.prune_packable = val.parse().unwrap_or_else(|e| {
+                        log::warn!("Failed to parse git count-objects field 'prune-packable': {e}");
+                        0
+                    })
+                }
+                "garbage" => {
+                    stats.garbage = val.parse().unwrap_or_else(|e| {
+                        log::warn!("Failed to parse git count-objects field 'garbage': {e}");
+                        0
+                    })
+                }
                 "size-garbage" => {
-                    stats.size_garbage_mib = val.parse::<f64>().unwrap_or(0.0) / 1024.0
+                    stats.size_garbage_mib = val.parse::<f64>().unwrap_or_else(|e| {
+                        log::warn!("Failed to parse git count-objects field 'size-garbage': {e}");
+                        0.0
+                    }) / 1024.0
                 }
                 _ => {}
             }

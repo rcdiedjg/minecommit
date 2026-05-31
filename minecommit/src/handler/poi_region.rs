@@ -21,12 +21,10 @@ impl Handler for PoiRegionHandler {
                 let data = save.get(&key)?;
                 let filename = key.split('/').next_back().unwrap_or("");
                 let (region_x, region_z) = parse_xz(filename)
-                    .with_context(|| format!("failed to parse (x,z) from {key}"))
-                    .context("failed to parse region coordinates")?;
+                    .with_context(|| format!("failed to parse region coordinates from {key}"))?;
                 let Some((timestamp_header, chunks)) =
                     read_region(Cursor::new(data), region_x, region_z)
-                        .with_context(|| format!("failed to read region from {key}"))
-                        .context("failed to read region")?
+                        .with_context(|| format!("failed to read region from {key}"))?
                 else {
                     processed.push(key);
                     continue;
@@ -40,11 +38,12 @@ impl Handler for PoiRegionHandler {
                         let sorted_nbt = sort_nbt(raw_nbt);
                         let sorted_bytes =
                             dump_nbt(sorted_nbt, size).context("failed to dump chunk nbt")?;
-                        debug_assert_eq!(
-                            size,
-                            sorted_bytes.len(),
-                            "raw nbt length should equal to sorted"
-                        );
+                        if size != sorted_bytes.len() {
+                            log::warn!(
+                                "NBT length mismatch in poi region: expected {size}, got {}",
+                                sorted_bytes.len()
+                            );
+                        }
                         sorted_bytes
                     };
                     storage.put(&format!("{key}/c.{chunk_x}.{chunk_z}.nbt"), &nbt)?;
@@ -65,16 +64,15 @@ impl Handler for PoiRegionHandler {
                 };
                 let filename = region_key.split('/').next_back().unwrap_or("");
                 let (region_x, region_z) = parse_xz(filename)
-                    .with_context(|| format!("failed to parse (x,z) from {ts_key}"))
-                    .context("failed to parse region coordinates")?;
+                    .with_context(|| format!("failed to parse region coordinates from {ts_key}"))?;
                 let timestamp_header = storage.get(&ts_key)?;
                 let chunk_pattern = format!("{region_key}/c.*.*.nbt");
                 let mut chunks = Vec::new();
                 for chunk_key in storage.glob(&chunk_pattern)? {
                     let chunk_filename = chunk_key.split('/').next_back().unwrap_or("");
-                    let (chunk_x, chunk_z) = parse_xz(chunk_filename)
-                        .with_context(|| format!("failed to parse (x,z) from {chunk_filename}"))
-                        .context("failed to parse chunk coordinates")?;
+                    let (chunk_x, chunk_z) = parse_xz(chunk_filename).with_context(|| {
+                        format!("failed to parse chunk coordinates from {chunk_filename}")
+                    })?;
                     let nbt = storage.get(&chunk_key)?;
                     chunks.push((chunk_x, chunk_z, nbt));
                     processed.push(chunk_key);
@@ -89,8 +87,7 @@ impl Handler for PoiRegionHandler {
                     chunks,
                     Cursor::new(&mut mca_buf),
                 )
-                .with_context(|| format!("failed to write region for {ts_key}"))
-                .context("failed to write region")?;
+                .with_context(|| format!("failed to write region for {ts_key}"))?;
                 save.put(region_key, &mca_buf)?;
 
                 processed.push(ts_key);

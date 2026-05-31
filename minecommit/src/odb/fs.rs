@@ -73,9 +73,11 @@ impl OdbWriter for LocalFsOdb {
         assert_safe_key(key)?;
         let path = self.root_dir.join(key);
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).context("failed to create parent directory")?;
+            fs::create_dir_all(parent)
+                .with_context(|| format!("failed to create parent directory for key {key:?}"))?;
         }
-        fs::write(path, value).context("failed to write file to odb")?;
+        fs::write(&path, value)
+            .with_context(|| format!("failed to write file to odb at {path:?}"))?;
         Ok(())
     }
 
@@ -87,9 +89,12 @@ impl OdbWriter for LocalFsOdb {
             assert_safe_key(&key)?;
             let path = self.root_dir.join(&key);
             if let Some(parent) = path.parent() {
-                fs::create_dir_all(parent).context("failed to create parent directory")?;
+                fs::create_dir_all(parent).with_context(|| {
+                    format!("failed to create parent directory for key {key:?}")
+                })?;
             }
-            fs::write(path, value).context("failed to write file to odb")?;
+            fs::write(&path, value)
+                .with_context(|| format!("failed to write file to odb at {path:?}"))?;
             Ok::<(), anyhow::Error>(())
         })
     }

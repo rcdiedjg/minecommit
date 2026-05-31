@@ -61,10 +61,17 @@ pub fn read_region<B: Read + Seek>(
             if compression_type == 2 {
                 let mut decoder = ZlibDecoder::new(&compressed[..]);
                 let mut nbt = Vec::new();
-                if decoder.read_to_end(&mut nbt).is_ok() {
-                    let local_x = (i % 32) as i32;
-                    let local_z = (i / 32) as i32;
-                    return Some((region_x * 32 + local_x, region_z * 32 + local_z, nbt));
+                match decoder.read_to_end(&mut nbt) {
+                    Ok(_) => {
+                        let local_x = (i % 32) as i32;
+                        let local_z = (i / 32) as i32;
+                        return Some((region_x * 32 + local_x, region_z * 32 + local_z, nbt));
+                    }
+                    Err(e) => {
+                        log::warn!(
+                            "Skipping corrupt chunk #{i} in region ({region_x}, {region_z}): {e}"
+                        );
+                    }
                 }
             } else {
                 todo!("Support compression type {compression_type}")
