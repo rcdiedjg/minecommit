@@ -74,16 +74,25 @@ fn dump_sections(sections: &NbtList) -> Result<SectionsDump> {
                 local_block_palette,
                 has_palettes: true,
             });
-        } else if idx == 0 || idx == sections_len - 1 {
-            log::trace!(
-                "Missing field 'biomes' or/and 'block_states' in 'sections.{idx}' (y={y}), all fields got: {:?}",
-                section.keys().map(|s| s.to_str()).collect::<Vec<_>>()
-            );
         } else {
-            anyhow::bail!(
-                "Missing field 'biomes' or/and 'block_states' in 'sections.{idx}' (y={y}), all fields got: {:?}",
-                section.keys().map(|s| s.to_str()).collect::<Vec<_>>()
-            );
+            // push placeholder with empty palettes to keep alignment with sections_compounds
+            metas.push(SecMeta {
+                y,
+                local_biome_palette: Vec::new(),
+                local_block_palette: Vec::new(),
+                has_palettes: false,
+            });
+            if idx != 0 && idx != sections_len - 1 {
+                anyhow::bail!(
+                    "Missing field 'biomes' or/and 'block_states' in 'sections.{idx}' (y={y}), all fields got: {:?}",
+                    section.keys().map(|s| s.to_str()).collect::<Vec<_>>()
+                );
+            } else {
+                log::trace!(
+                    "Missing field 'biomes' or/and 'block_states' in 'sections.{idx}' (y={y}), all fields got: {:?}",
+                    section.keys().map(|s| s.to_str()).collect::<Vec<_>>()
+                );
+            }
         }
     }
 
@@ -119,6 +128,24 @@ fn dump_sections(sections: &NbtList) -> Result<SectionsDump> {
     }
 
     // Pass 2 — unpack data directly with merged-index maps.
+    anyhow::ensure!(
+        sections_compounds.len() == metas.len(),
+        "lengths of sections and metas is not equal: {} != {}",
+        sections_compounds.len(),
+        metas.len()
+    );
+    anyhow::ensure!(
+        sections_compounds.len() == biome_maps.len(),
+        "lengths of sections and biome_maps is not equal: {} != {}",
+        sections_compounds.len(),
+        biome_maps.len()
+    );
+    anyhow::ensure!(
+        sections_compounds.len() == block_maps.len(),
+        "lengths of sections and block_map is not equal: {} != {}",
+        sections_compounds.len(),
+        block_maps.len()
+    );
     let mut sections = Vec::with_capacity(metas.len());
     for (((section, meta), biome_map), block_map) in sections_compounds
         .iter()
