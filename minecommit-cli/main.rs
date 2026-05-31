@@ -8,7 +8,7 @@ use minecommit::{
     utils::cmd::{git_cmd, git_count_objects, git_repack, git_repo_exists},
 };
 
-/// Minecommit - Commit your Minecraft world to Git
+/// MineCommit - Commit your Minecraft world to Git
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 struct Cli {
@@ -232,6 +232,6 @@ fn main() -> Result<(), anyhow::Error> {
                 }
             };
             Ok(())
-        },
+        }
     }
 }
