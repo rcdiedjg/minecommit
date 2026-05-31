@@ -19,6 +19,8 @@ MineCommit converts Minecraft Java Edition saves into a **Git-friendly** format.
 - 🗜️ **Extreme Space Efficiency**: Each incremental backup averages only a fraction of the original save size
 - ⚡ **Fast Backup and Restore**: Streaming parallelism via [`rayon`](https://github.com/rayon-rs/rayon), NBT parsing via [`simdnbt`](https://github.com/azalea-rs/simdnbt), and Git I/O via [`gitoxide`](https://github.com/GitoxideLabs/gitoxide)
 
+Any question? Please read [FAQ.md](docs/FAQ.md) or feel free to open an issue.
+
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -206,61 +208,11 @@ Each handler operates within its own namespaced workspace. The ODB (Object Datab
 
 ## 🤝 Contributing
 
-Contributions are welcome! Here's how you can help:
+The easiest way to contribute is just using MineCommit. You can use it on your saves during gaming.
 
-### Development Setup
+If you encounter problems, feel free to open an issue.
 
-```sh
-# Clone the repository
-git clone https://github.com/HairlessVillager/minecommit.git
-cd minecommit
-
-# Install Rust Nightly (required by simdnbt)
-rustup toolchain install nightly
-
-# Build the CLI
-cargo build --release --bin minecommit
-
-# Run tests
-cargo test
-```
-
-For GUI development:
-
-```sh
-cd minecommit-gui
-bun install        # or npm install
-bun run tauri dev  # starts Vite dev server + Tauri window
-```
-
-### Project Structure
-
-```text
-minecommit/
-├── minecommit/          # Core library (handlers, ODB, utilities)
-│   └── src/
-│       ├── handler/     # File-type handlers (ChunkRegion, Entities, POI, etc.)
-│       ├── odb/         # Object database abstraction (Fs, Git backends)
-│       └── utils/       # Shared utilities (NBT, region, git command helpers)
-├── minecommit-cli/      # CLI binary (clap-based argument parsing)
-├── minecommit-gui/      # Tauri + React GUI
-│   ├── src/             # React frontend (pages, components)
-│   └── src-tauri/       # Tauri Rust backend
-```
-
-### Commit Conventions
-
-1. Big idea (> 100 lines) should be reviewed in a issue before PR
-2. Write useful commit message (you can follow https://chris.beams.io/git-commit)
-3. Keep PRs focused on a single change
-4. Run `cargo fmt` and `cargo clippy` before submitting
-
-### Adding a New Handler
-
-1. Create a new module under `minecommit/src/handler/`
-2. Implement the `Handler` trait with `workspace()`, `flatten()`, and `unflatten()`
-3. Register it in `CrafterImpl::get_crafters()` in `minecommit/src/handler/mod.rs`
-4. Add the handler's dependency if needed to `minecommit/Cargo.toml`
+For developing guide, please read [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## 🙏 Credits
 
