@@ -180,16 +180,52 @@ impl Handler for EntitiesRegionHandler {
                 result
                     .sort_unstable_by(|(cx1, cz1, ..), (cx2, cz2, ..)| (cz1, cx1).cmp(&(cz2, cx2)));
 
-                // Build and write entities.nbt (all chunk NBTs in one compound)
+                // Build and write entities.nbt with Chunks + Flatten compounds
                 {
-                    let mut entities_compound = NbtCompound::new();
+                    let mut chunks_compound = NbtCompound::new();
+                    let mut all_motions = Vec::new();
+                    let mut all_positions = Vec::new();
+                    let mut all_rotations = Vec::new();
                     for (chunk_x, chunk_z, nbt) in &mut result {
                         let key_str = format!("c.{}.{}", chunk_x, chunk_z);
-                        entities_compound.insert(
+                        // Extract flattened arrays from chunk and aggregate into Flatten
+                        if let Some(m) = nbt
+                            .remove("Motions")
+                            .and_then(|t| t.into_list())
+                            .and_then(|l| l.into_doubles())
+                        {
+                            all_motions.extend(m);
+                        }
+                        if let Some(p) = nbt
+                            .remove("Pos")
+                            .and_then(|t| t.into_list())
+                            .and_then(|l| l.into_doubles())
+                        {
+                            all_positions.extend(p);
+                        }
+                        if let Some(r) = nbt
+                            .remove("Rotation")
+                            .and_then(|t| t.into_list())
+                            .and_then(|l| l.into_floats())
+                        {
+                            all_rotations.extend(r);
+                        }
+                        chunks_compound.insert(
                             key_str,
                             NbtTag::Compound(std::mem::replace(nbt, NbtCompound::default())),
                         );
                     }
+                    let mut flatten_compound = NbtCompound::new();
+                    flatten_compound
+                        .insert("Motions", NbtTag::List(NbtList::Double(all_motions)));
+                    flatten_compound
+                        .insert("Pos", NbtTag::List(NbtList::Double(all_positions)));
+                    flatten_compound
+                        .insert("Rotation", NbtTag::List(NbtList::Float(all_rotations)));
+
+                    let mut entities_compound = NbtCompound::new();
+                    entities_compound.insert("Chunks", NbtTag::Compound(chunks_compound));
+                    entities_compound.insert("Flatten", NbtTag::Compound(flatten_compound));
                     let entities_nbt = simdnbt::owned::BaseNbt::new("", entities_compound);
                     let entities_nbt = sort_nbt(entities_nbt);
                     let mut entities_buf = Vec::new();
@@ -216,7 +252,7 @@ impl Handler for EntitiesRegionHandler {
                     .with_context(|| format!("failed to parse region coordinates from {ts_key}"))?;
                 let timestamp_header = storage.get(&ts_key)?;
 
-                // Read entities.nbt (all chunk NBTs in one compound)
+                // Read entities.nbt (Chunks + Flatten compounds)
                 let entities_key = format!("{region_key}/entities.nbt");
                 let entities_data = storage
                     .get(&entities_key)
@@ -225,8 +261,37 @@ impl Handler for EntitiesRegionHandler {
                     .context("failed to load entities nbt")?;
                 let mut entities_compound = entities_nbt.as_compound();
 
-                // Extract coordinates from compound keys
-                let mut coords: Vec<(i32, i32)> = entities_compound
+                // Extract Flatten and Chunks compounds
+                let flatten_tag = entities_compound
+                    .remove("Flatten")
+                    .ok_or_else(|| anyhow::anyhow!("Missing Flatten in entities.nbt"))?;
+                let mut flatten_compound = flatten_tag
+                    .into_compound()
+                    .ok_or_else(|| anyhow::anyhow!("Flatten is not a compound"))?;
+                let mut chunks_compound = entities_compound
+                    .remove("Chunks")
+                    .and_then(|t| t.into_compound())
+                    .ok_or_else(|| anyhow::anyhow!("Missing Chunks in entities.nbt"))?;
+
+                // Read aggregated flattened arrays
+                let all_motions = flatten_compound
+                    .remove("Motions")
+                    .and_then(|t| t.into_list())
+                    .and_then(|l| l.into_doubles())
+                    .ok_or_else(|| anyhow::anyhow!("Missing Motions in Flatten"))?;
+                let all_positions = flatten_compound
+                    .remove("Pos")
+                    .and_then(|t| t.into_list())
+                    .and_then(|l| l.into_doubles())
+                    .ok_or_else(|| anyhow::anyhow!("Missing Pos in Flatten"))?;
+                let all_rotations = flatten_compound
+                    .remove("Rotation")
+                    .and_then(|t| t.into_list())
+                    .and_then(|l| l.into_floats())
+                    .ok_or_else(|| anyhow::anyhow!("Missing Rotation in Flatten"))?;
+
+                // Extract coordinates from chunks_compound keys
+                let mut coords: Vec<(i32, i32)> = chunks_compound
                     .keys()
                     .filter_map(|key| {
                         let s = key.to_str();
@@ -240,16 +305,37 @@ impl Handler for EntitiesRegionHandler {
                     .collect();
                 coords.sort_unstable_by(|(x1, z1), (x2, z2)| (z1, x1).cmp(&(z2, x2)));
 
-                // Reconstruct chunks from compound
+                // Reconstruct chunks, restoring flattened arrays per chunk
+                let mut motion_off = 0usize;
+                let mut pos_off = 0usize;
+                let mut rot_off = 0usize;
                 let mut chunks = Vec::new();
                 for (chunk_x, chunk_z) in coords {
                     let key_str = format!("c.{}.{}", chunk_x, chunk_z);
-                    let nbt_tag = entities_compound
+                    let nbt_tag = chunks_compound
                         .remove(&key_str)
                         .ok_or_else(|| anyhow::anyhow!("missing '{}' in entities nbt", key_str))?;
                     let mut nbt_compound = nbt_tag
                         .into_compound()
                         .ok_or_else(|| anyhow::anyhow!("expect '{}' is NBT Compound", key_str))?;
+
+                    // Count entities to slice from the aggregated flattened arrays
+                    let n = nbt_compound
+                        .list("Entities")
+                        .and_then(|l| l.compounds())
+                        .map(|e| e.len())
+                        .unwrap_or(0);
+                    if n > 0 {
+                        let m = Vec::from(&all_motions[motion_off..motion_off + n * 3]);
+                        nbt_compound.insert("Motions", NbtTag::List(NbtList::Double(m)));
+                        let p = Vec::from(&all_positions[pos_off..pos_off + n * 3]);
+                        nbt_compound.insert("Pos", NbtTag::List(NbtList::Double(p)));
+                        let r = Vec::from(&all_rotations[rot_off..rot_off + n * 2]);
+                        nbt_compound.insert("Rotation", NbtTag::List(NbtList::Float(r)));
+                        motion_off += n * 3;
+                        pos_off += n * 3;
+                        rot_off += n * 2;
+                    }
                     demote_entity_fields(&mut nbt_compound)?;
                     let mut buf = Vec::new();
                     simdnbt::owned::BaseNbt::new("", nbt_compound).write(&mut buf);
