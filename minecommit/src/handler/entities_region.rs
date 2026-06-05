@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use simdnbt::owned::{BaseNbt, NbtCompound, NbtTag};
+use simdnbt::owned::{NbtCompound, NbtList, NbtTag};
 use std::io::Cursor;
 
 use super::Handler;
@@ -10,6 +10,23 @@ use crate::utils::region::{parse_xz, read_region, write_region};
 const FLATTEN_PATTERNS: &[&str] = &["**/entities/r.*.*.mca"];
 
 const UNFLATTEN_PATTERNS: &[&str] = &["**/entities/r.*.*.mca/timestamp-header"];
+
+/// Sort the `attributes` list within each entity in the `Entities` field by the `id` string field.
+/// Called after `sort_nbt` (which handles key ordering and general recursion), so this function
+/// does NOT re-sort keys.
+fn sort_entity_attributes_by_id(nbt: &mut NbtCompound) {
+    if let Some(NbtList::Compound(entities)) = nbt.list_mut("Entities") {
+        for entity in entities {
+            if let Some(NbtList::Compound(attributes)) = entity.list_mut("attributes") {
+                attributes.sort_by(|a, b| {
+                    a.string("id")
+                        .map(|s| s.as_bytes())
+                        .cmp(&b.string("id").map(|s| s.as_bytes()))
+                });
+            }
+        }
+    }
+}
 
 pub(crate) struct EntitiesRegionHandler;
 
@@ -37,13 +54,14 @@ impl Handler for EntitiesRegionHandler {
                 storage.put(&format!("{key}/timestamp-header"), &timestamp_header)?;
 
                 // Parse and sort all chunk NBTs
-                let mut result: Vec<(i32, i32, BaseNbt)> = chunks
+                let mut result: Vec<(i32, i32, NbtCompound)> = chunks
                     .into_iter()
                     .map(|(chunk_x, chunk_z, raw_bytes)| {
-                        let raw_nbt = load_nbt(Cursor::new(&raw_bytes))
-                            .context("failed to load chunk nbt")?;
-                        let sorted_nbt = sort_nbt(raw_nbt);
-                        Ok((chunk_x, chunk_z, sorted_nbt))
+                        let mut nbt = load_nbt(Cursor::new(&raw_bytes))
+                            .context("failed to load chunk nbt")?
+                            .as_compound();
+                        sort_entity_attributes_by_id(&mut nbt);
+                        Ok((chunk_x, chunk_z, nbt))
                     })
                     .collect::<Result<Vec<_>>>()?;
 
@@ -58,9 +76,7 @@ impl Handler for EntitiesRegionHandler {
                         let key_str = format!("c.{}.{}", chunk_x, chunk_z);
                         entities_compound.insert(
                             key_str,
-                            NbtTag::Compound(
-                                std::mem::replace(nbt, BaseNbt::default()).as_compound(),
-                            ),
+                            NbtTag::Compound(std::mem::replace(nbt, NbtCompound::default())),
                         );
                     }
                     let entities_nbt = simdnbt::owned::BaseNbt::new("", entities_compound);
