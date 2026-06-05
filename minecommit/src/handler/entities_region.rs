@@ -1,9 +1,10 @@
 use anyhow::{Context, Result};
+use simdnbt::owned::{BaseNbt, NbtCompound, NbtTag};
 use std::io::Cursor;
 
 use super::Handler;
 use crate::odb::{OdbReader, OdbWriter};
-use crate::utils::nbt::{dump_nbt, load_nbt, sort_nbt};
+use crate::utils::nbt::{load_nbt, sort_nbt};
 use crate::utils::region::{parse_xz, read_region, write_region};
 
 const FLATTEN_PATTERNS: &[&str] = &["**/entities/r.*.*.mca"];
@@ -34,24 +35,40 @@ impl Handler for EntitiesRegionHandler {
                     continue;
                 };
                 storage.put(&format!("{key}/timestamp-header"), &timestamp_header)?;
-                for (chunk_x, chunk_z, raw_bytes) in chunks {
-                    let nbt = {
-                        let size = raw_bytes.len();
+
+                // Parse and sort all chunk NBTs
+                let mut result: Vec<(i32, i32, BaseNbt)> = chunks
+                    .into_iter()
+                    .map(|(chunk_x, chunk_z, raw_bytes)| {
                         let raw_nbt = load_nbt(Cursor::new(&raw_bytes))
                             .context("failed to load chunk nbt")?;
                         let sorted_nbt = sort_nbt(raw_nbt);
-                        let sorted_bytes =
-                            dump_nbt(sorted_nbt, size).context("failed to dump chunk nbt")?;
-                        if size != sorted_bytes.len() {
-                            log::warn!(
-                                "NBT length mismatch in entities region: expected {size}, got {}",
-                                sorted_bytes.len()
-                            );
-                        }
-                        sorted_bytes
-                    };
-                    storage.put(&format!("{key}/c.{chunk_x}.{chunk_z}.nbt"), &nbt)?;
+                        Ok((chunk_x, chunk_z, sorted_nbt))
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+
+                // Sort by (cz, cx) for deterministic ordering
+                result
+                    .sort_unstable_by(|(cx1, cz1, ..), (cx2, cz2, ..)| (cz1, cx1).cmp(&(cz2, cx2)));
+
+                // Build and write entities.nbt (all chunk NBTs in one compound)
+                {
+                    let mut entities_compound = NbtCompound::new();
+                    for (chunk_x, chunk_z, nbt) in &mut result {
+                        let key_str = format!("c.{}.{}", chunk_x, chunk_z);
+                        entities_compound.insert(
+                            key_str,
+                            NbtTag::Compound(
+                                std::mem::replace(nbt, BaseNbt::default()).as_compound(),
+                            ),
+                        );
+                    }
+                    let entities_nbt = simdnbt::owned::BaseNbt::new("", entities_compound);
+                    let mut entities_buf = Vec::new();
+                    entities_nbt.write(&mut entities_buf);
+                    storage.put(&format!("{key}/entities.nbt"), &entities_buf)?;
                 }
+
                 processed.push(key);
             }
         }
@@ -70,17 +87,46 @@ impl Handler for EntitiesRegionHandler {
                 let (region_x, region_z) = parse_xz(filename)
                     .with_context(|| format!("failed to parse region coordinates from {ts_key}"))?;
                 let timestamp_header = storage.get(&ts_key)?;
-                let chunk_pattern = format!("{region_key}/c.*.*.nbt");
+
+                // Read entities.nbt (all chunk NBTs in one compound)
+                let entities_key = format!("{region_key}/entities.nbt");
+                let entities_data = storage
+                    .get(&entities_key)
+                    .with_context(|| format!("failed to read {entities_key}"))?;
+                let entities_nbt = load_nbt(std::io::Cursor::new(&entities_data))
+                    .context("failed to load entities nbt")?;
+                let mut entities_compound = entities_nbt.as_compound();
+
+                // Extract coordinates from compound keys
+                let mut coords: Vec<(i32, i32)> = entities_compound
+                    .keys()
+                    .filter_map(|key| {
+                        let s = key.to_str();
+                        s.strip_prefix("c.").and_then(|rest| {
+                            let (x_str, z_str) = rest.split_once('.')?;
+                            let x = x_str.parse::<i32>().ok()?;
+                            let z = z_str.parse::<i32>().ok()?;
+                            Some((x, z))
+                        })
+                    })
+                    .collect();
+                coords.sort_unstable_by(|(x1, z1), (x2, z2)| (z1, x1).cmp(&(z2, x2)));
+
+                // Reconstruct chunks from compound
                 let mut chunks = Vec::new();
-                for chunk_key in storage.glob(&chunk_pattern)? {
-                    let chunk_filename = chunk_key.split('/').next_back().unwrap_or("");
-                    let (chunk_x, chunk_z) = parse_xz(chunk_filename).with_context(|| {
-                        format!("failed to parse chunk coordinates from {chunk_filename}")
-                    })?;
-                    let nbt = storage.get(&chunk_key)?;
-                    chunks.push((chunk_x, chunk_z, nbt));
-                    processed.push(chunk_key);
+                for (chunk_x, chunk_z) in coords {
+                    let key_str = format!("c.{}.{}", chunk_x, chunk_z);
+                    let nbt_tag = entities_compound
+                        .remove(&key_str)
+                        .ok_or_else(|| anyhow::anyhow!("missing '{}' in entities nbt", key_str))?;
+                    let nbt_compound = nbt_tag
+                        .into_compound()
+                        .ok_or_else(|| anyhow::anyhow!("expect '{}' is NBT Compound", key_str))?;
+                    let mut buf = Vec::new();
+                    simdnbt::owned::BaseNbt::new("", nbt_compound).write(&mut buf);
+                    chunks.push((chunk_x, chunk_z, buf));
                 }
+
                 let mut mca_buf = Vec::with_capacity(200 * 1024); // 200KiB
                 write_region(
                     region_x,
@@ -95,6 +141,7 @@ impl Handler for EntitiesRegionHandler {
                 save.put(region_key, &mca_buf)?;
 
                 processed.push(ts_key);
+                processed.push(entities_key);
             }
         }
         Ok(processed)
