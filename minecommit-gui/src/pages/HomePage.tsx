@@ -58,11 +58,7 @@ function CommitDialog({
           </Field>
           <Field>
             <Label htmlFor="name">你的游戏昵称</Label>
-            <Input
-              id="name"
-              name="name"
-              placeholder="例如：HairlessVillager"
-            />
+            <Input id="name" name="name" placeholder="例如：HairlessVillager" />
           </Field>
           <Field>
             <Label htmlFor="email">联系邮箱</Label>
@@ -316,22 +312,34 @@ export function HomePage() {
       <CommitDialog
         open={commitDialogOpen}
         onOpenChange={setCommitDialogOpen}
-        onSubmit={() => { setCommitDialogOpen(false); openLog("commit") }}
+        onSubmit={() => {
+          setCommitDialogOpen(false)
+          openLog("commit")
+        }}
       />
       <RestoreDialog
         open={restoreDialogOpen}
         onOpenChange={setRestoreDialogOpen}
-        onSubmit={() => { setRestoreDialogOpen(false); openLog("restore") }}
+        onSubmit={() => {
+          setRestoreDialogOpen(false)
+          openLog("restore")
+        }}
       />
       <PushDialog
         open={pushDialogOpen}
         onOpenChange={setPushDialogOpen}
-        onSubmit={() => { setPushDialogOpen(false); openLog("push") }}
+        onSubmit={() => {
+          setPushDialogOpen(false)
+          openLog("push")
+        }}
       />
       <PullDialog
         open={pullDialogOpen}
         onOpenChange={setPullDialogOpen}
-        onSubmit={() => { setPullDialogOpen(false); openLog("pull") }}
+        onSubmit={() => {
+          setPullDialogOpen(false)
+          openLog("pull")
+        }}
       />
       <RollingLogDialog
         open={logDialogOpen}
