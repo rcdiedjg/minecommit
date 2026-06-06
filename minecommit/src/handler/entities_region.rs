@@ -128,7 +128,7 @@ fn sort_entity_attributes_by_id(nbt: &mut NbtCompound) {
     if let Some(NbtList::Compound(entities)) = nbt.list_mut("Entities") {
         for entity in entities {
             if let Some(NbtList::Compound(attributes)) = entity.list_mut("attributes") {
-                attributes.sort_by(|a, b| {
+                attributes.sort_unstable_by(|a, b| {
                     a.string("id")
                         .map(|s| s.as_bytes())
                         .cmp(&b.string("id").map(|s| s.as_bytes()))
@@ -216,10 +216,8 @@ impl Handler for EntitiesRegionHandler {
                         );
                     }
                     let mut flatten_compound = NbtCompound::new();
-                    flatten_compound
-                        .insert("Motions", NbtTag::List(NbtList::Double(all_motions)));
-                    flatten_compound
-                        .insert("Pos", NbtTag::List(NbtList::Double(all_positions)));
+                    flatten_compound.insert("Motions", NbtTag::List(NbtList::Double(all_motions)));
+                    flatten_compound.insert("Pos", NbtTag::List(NbtList::Double(all_positions)));
                     flatten_compound
                         .insert("Rotation", NbtTag::List(NbtList::Float(all_rotations)));
 

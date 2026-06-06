@@ -137,7 +137,7 @@ fn sort_recipe_book(comp: &mut NbtCompound) {
 
 fn sort_player_attributes(comp: &mut NbtCompound) {
     if let Some(NbtList::Compound(attributes)) = comp.list_mut("attributes") {
-        attributes.sort_by(|a, b| {
+        attributes.sort_unstable_by(|a, b| {
             a.string("id")
                 .map(|s| s.as_bytes())
                 .cmp(&b.string("id").map(|s| s.as_bytes()))
