@@ -80,6 +80,22 @@ impl Handler for GzipNbtHandler {
                         }
                     };
 
+                    // Sort player attributes in level.dat
+                    let nbt = {
+                        if key == "level.dat" || key == "level.dat_old" {
+                            let name = nbt.name().to_owned();
+                            let mut comp = nbt.as_compound();
+                            if let Some(data) = comp.compound_mut("Data")
+                                && let Some(player) = data.compound_mut("Player")
+                            {
+                                sort_player_attributes(player);
+                            }
+                            BaseNbt::new(name, comp)
+                        } else {
+                            nbt
+                        }
+                    };
+
                     dump_nbt(nbt, decompressed.len())?
                 };
                 storage.put(&key, &sorted)?;
@@ -119,5 +135,15 @@ fn sort_recipe_book(comp: &mut NbtCompound) {
                 strings.sort_unstable_by(|a, b| a.as_bytes().cmp(b.as_bytes()));
             }
         }
+    }
+}
+
+fn sort_player_attributes(comp: &mut NbtCompound) {
+    if let Some(NbtList::Compound(attributes)) = comp.list_mut("attributes") {
+        attributes.sort_by(|a, b| {
+            a.string("id")
+                .map(|s| s.as_bytes())
+                .cmp(&b.string("id").map(|s| s.as_bytes()))
+        });
     }
 }
