@@ -19,17 +19,17 @@ import { DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import {
   ChevronDown,
   HardDrive,
-  History,
+  // History,
   House,
-  LayoutDashboard,
+  // LayoutDashboard,
   Settings,
 } from "lucide-react"
 import { useState } from "react"
 
 const allItems = [
   { to: "/", label: "主页", icon: House },
-  { to: "/dashboard", label: "看板", icon: LayoutDashboard },
-  { to: "/history", label: "历史", icon: History },
+  // { to: "/dashboard", label: "看板", icon: LayoutDashboard },
+  // { to: "/history", label: "历史", icon: History },
   { to: "/settings", label: "设置", icon: Settings },
 ]
 const navItems = allItems.slice(0, -1)
