@@ -39,8 +39,9 @@ import {
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { useState, useEffect, useCallback } from "react"
-import { Trash2, HardDrive } from "lucide-react"
+import { Trash2, HardDrive, FolderOpen } from "lucide-react"
 import { invoke } from "@tauri-apps/api/core"
+import { open as openFolderDialog } from "@tauri-apps/plugin-dialog"
 
 interface Save {
   name: string
@@ -69,6 +70,23 @@ function EmptySave({ onAddTrack }: { onAddTrack: () => void }) {
   )
 }
 
+/** Derive a save name from a folder path (e.g. last segment). */
+function deriveNameFromPath(path: string): string {
+  const normalized = path.replace(/\\/g, "/")
+  const parts = normalized.split("/")
+  return parts[parts.length - 1] || ""
+}
+
+/** Derive a reasonable default local repo path from the save path. */
+function deriveRepoPathFromPath(path: string): string {
+  const name = deriveNameFromPath(path)
+  const normalized = path.replace(/\\/g, "/")
+  const parentDir = normalized.split("/").slice(0, -1).join("/")
+  return `${parentDir}/minecommit/${name}.git`
+}
+
+type AddTrackStep = "select" | "confirm"
+
 function AddTrackDialog({
   open,
   onOpenChange,
@@ -78,22 +96,61 @@ function AddTrackDialog({
   onOpenChange: (open: boolean) => void
   onSaveAdded: () => void
 }) {
+  const [step, setStep] = useState<AddTrackStep>("select")
+
+  // Form state (pre-filled after folder selection)
   const [name, setName] = useState("")
   const [path, setPath] = useState("")
   const [localRepoPath, setLocalRepoPath] = useState("")
   const [remoteRepoPath, setRemoteRepoPath] = useState("")
   const [error, setError] = useState("")
   const [submitting, setSubmitting] = useState(false)
+  const [selecting, setSelecting] = useState(false)
 
-  function resetForm() {
+  function resetAll() {
+    setStep("select")
     setName("")
     setPath("")
     setLocalRepoPath("")
     setRemoteRepoPath("")
     setError("")
     setSubmitting(false)
+    setSelecting(false)
   }
 
+  function handleOpenChange(open: boolean) {
+    if (!open) {
+      resetAll()
+    }
+    onOpenChange(open)
+  }
+
+  // --- Step: select ---
+  async function handleSelectFolder() {
+    setSelecting(true)
+    try {
+      const selected = await openFolderDialog({
+        directory: true,
+        multiple: false,
+        title: "选择存档文件夹",
+      })
+      if (selected) {
+        // Pre-fill fields
+        setName(deriveNameFromPath(selected))
+        setPath(selected)
+        setLocalRepoPath(deriveRepoPathFromPath(selected))
+        setRemoteRepoPath("")
+        setError("")
+        setStep("confirm")
+      }
+    } catch (err) {
+      console.error("Failed to open folder dialog:", err)
+    } finally {
+      setSelecting(false)
+    }
+  }
+
+  // --- Step: confirm ---
   async function handleSubmit(e: { preventDefault: () => void }) {
     e.preventDefault()
     setError("")
@@ -106,7 +163,7 @@ function AddTrackDialog({
         remoteRepoPath,
       })
       onOpenChange(false)
-      resetForm()
+      resetAll()
       onSaveAdded()
     } catch (err) {
       setError(String(err))
@@ -115,80 +172,109 @@ function AddTrackDialog({
     }
   }
 
-  function handleOpenChange(open: boolean) {
-    if (!open) {
-      resetForm()
-    }
-    onOpenChange(open)
+  function handleBack() {
+    resetAll()
   }
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <form onSubmit={(e) => e.preventDefault()}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>添加跟踪</DialogTitle>
-            <DialogDescription>选择一个 Minecraft 存档文件夹</DialogDescription>
-          </DialogHeader>
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="save-name">存档名称</FieldLabel>
-              <Input
-                id="save-name"
-                placeholder="我的世界"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="save-path">存档路径</FieldLabel>
-              <Input
-                id="save-path"
-                placeholder="/home/user/.minecraft/saves/我的世界"
-                value={path}
-                onChange={(e) => setPath(e.target.value)}
-                required
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="local-repo-path">本地仓库路径</FieldLabel>
-              <Input
-                id="local-repo-path"
-                placeholder="/home/user/.minecraft/minecommit/我的世界.git"
-                value={localRepoPath}
-                onChange={(e) => setLocalRepoPath(e.target.value)}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="remote-repo-path">
-                远程仓库路径（可选）
-              </FieldLabel>
-              <Input
-                id="remote-repo-path"
-                placeholder="https://git.example.com/我的世界.git"
-                value={remoteRepoPath}
-                onChange={(e) => setRemoteRepoPath(e.target.value)}
-              />
-            </Field>
-            {error && (
-              <p className="text-sm text-destructive">{error}</p>
-            )}
-          </FieldGroup>
-          <DialogFooter className="mt-6">
-            <DialogClose render={<Button variant="outline" />}>
-              取消
-            </DialogClose>
-            <Button
-              type="button"
-              disabled={submitting}
-              onClick={handleSubmit}
-            >
-              {submitting ? "添加中…" : "跟踪"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </form>
+      <DialogContent>
+        {step === "select" && (
+          <>
+            <DialogHeader>
+              <DialogTitle>选择存档</DialogTitle>
+              <DialogDescription>
+                选择一个存档文件夹，需包含 level.dat 文件
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-col items-center gap-4 py-4">
+              <Button
+                size="lg"
+                disabled={selecting}
+                onClick={handleSelectFolder}
+                className="w-full max-w-xs"
+              >
+                <FolderOpen data-icon="inline-start" />
+                {selecting ? "请选择…" : "选择存档文件夹"}
+              </Button>
+            </div>
+            <DialogFooter>
+              <DialogClose render={<Button variant="outline" />}>
+                取消
+              </DialogClose>
+            </DialogFooter>
+          </>
+        )}
+
+        {step === "confirm" && (
+          <form
+            onSubmit={(e) => e.preventDefault()}
+            className="flex flex-col gap-4"
+          >
+            <DialogHeader>
+              <DialogTitle>确认存档信息</DialogTitle>
+              <DialogDescription>
+                已自动填写以下字段，请确认或修改后提交
+              </DialogDescription>
+            </DialogHeader>
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor="save-name">存档名称</FieldLabel>
+                <Input
+                  id="save-name"
+                  placeholder="我的世界"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="save-path">存档路径</FieldLabel>
+                <Input
+                  id="save-path"
+                  placeholder="/home/user/.minecraft/saves/我的世界"
+                  value={path}
+                  onChange={(e) => setPath(e.target.value)}
+                  required
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="local-repo-path">本地仓库路径</FieldLabel>
+                <Input
+                  id="local-repo-path"
+                  placeholder="/home/user/.minecraft/minecommit/我的世界.git"
+                  value={localRepoPath}
+                  onChange={(e) => setLocalRepoPath(e.target.value)}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="remote-repo-path">
+                  远程仓库路径（可选）
+                </FieldLabel>
+                <Input
+                  id="remote-repo-path"
+                  placeholder="https://git.example.com/我的世界.git"
+                  value={remoteRepoPath}
+                  onChange={(e) => setRemoteRepoPath(e.target.value)}
+                />
+              </Field>
+              {error && <p className="text-sm text-destructive">{error}</p>}
+            </FieldGroup>
+            <DialogFooter className="mt-6">
+              <Button variant="outline" type="button" onClick={handleBack}>
+                返回
+              </Button>
+              <Button
+                type="button"
+                disabled={submitting}
+                onClick={handleSubmit}
+              >
+                {submitting ? "添加中…" : "跟踪"}
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
+      </DialogContent>
     </Dialog>
   )
 }
@@ -240,9 +326,7 @@ export function SaveManagePage() {
           </div>
         </CardHeader>
         <CardContent>
-          {error && (
-            <p className="mb-4 text-sm text-destructive">{error}</p>
-          )}
+          {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
           {loading ? (
             <p className="text-sm text-muted-foreground">加载中…</p>
           ) : saves.length === 0 ? (
@@ -329,6 +413,7 @@ export function SaveManagePage() {
           )}
         </CardContent>
       </Card>
+
       <AddTrackDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
