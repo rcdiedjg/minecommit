@@ -19,6 +19,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
+  Archive,
   ChevronDown,
   HardDrive,
   // History,
@@ -59,8 +60,8 @@ export function AppSidebar() {
               <DropdownMenuContent className="w-40" align="start">
                 <DropdownMenuGroup>
                   <DropdownMenuItem>
-                    <Plus />
-                    新建
+                    <Archive />
+                    管理
                   </DropdownMenuItem>
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
