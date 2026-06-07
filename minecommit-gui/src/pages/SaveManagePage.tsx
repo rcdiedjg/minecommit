@@ -48,6 +48,7 @@ interface Save {
   path: string
   repo_path: string
   remote_repo_path: string
+  last_access: string
 }
 
 function EmptySave({ onAddTrack }: { onAddTrack: () => void }) {
@@ -340,11 +341,11 @@ export function SaveManagePage() {
             <Table className="table-fixed">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-2/5 text-muted-foreground">
+                  <TableHead className="w-auto text-muted-foreground">
                     存档名称
                   </TableHead>
-                  <TableHead className="w-2/5 text-muted-foreground">
-                    存档路径
+                  <TableHead className="w-52 text-muted-foreground">
+                    最近访问
                   </TableHead>
                   <TableHead className="w-18">
                     <span className="sr-only">操作</span>
@@ -355,12 +356,10 @@ export function SaveManagePage() {
                 {saves.map((save) => (
                   <HoverCard key={save.name}>
                     <HoverCardTrigger render={<TableRow />}>
-                      <TableCell className="max-w-0 truncate text-left [direction:rtl]">
+                      <TableCell className="truncate text-left">
                         {save.name}
                       </TableCell>
-                      <TableCell className="max-w-0 truncate text-left [direction:rtl]">
-                        {save.path}
-                      </TableCell>
+                      <TableCell>{save.last_access}</TableCell>
                       <TableCell className="text-right">
                         <Button
                           variant="ghost"
@@ -380,6 +379,10 @@ export function SaveManagePage() {
                         <div>
                           <p className="text-muted-foreground">存档名称</p>
                           <p className="break-all">{save.name}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">最近访问</p>
+                          <p className="break-all">{save.last_access}</p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">存档路径</p>

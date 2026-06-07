@@ -1,3 +1,4 @@
+use chrono::Local;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
@@ -40,6 +41,7 @@ pub struct Save {
     pub path: String,
     pub repo_path: String,
     pub remote_repo_path: String,
+    pub last_access: String,
 }
 
 struct SaveState {
@@ -96,10 +98,23 @@ fn add_save(
         path,
         repo_path,
         remote_repo_path,
+        last_access: Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
     };
     saves.push(save.clone());
     save_saves(&state.data_dir, &saves)?;
     Ok(save)
+}
+
+#[tauri::command]
+fn access_save(state: tauri::State<SaveState>, name: String) -> Result<(), AppError> {
+    let mut saves = state.saves.lock().unwrap();
+    let save = saves
+        .iter_mut()
+        .find(|s| s.name == name)
+        .ok_or_else(|| AppError::SaveNotFound(name))?;
+    save.last_access = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    save_saves(&state.data_dir, &saves)?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -192,6 +207,7 @@ pub fn run() {
             add_save,
             delete_save,
             derive_save_info,
+            access_save,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
