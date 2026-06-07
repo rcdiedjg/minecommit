@@ -88,8 +88,13 @@ export function SaveManagePage() {
     <div className="flex w-full flex-col gap-4 p-4">
       <Card>
         <CardHeader>
-          <CardTitle>存档列表</CardTitle>
-          <CardDescription>管理 MineCommit 对存档的跟踪</CardDescription>
+          <div className="flex items-end justify-between">
+            <div>
+              <CardTitle>存档列表</CardTitle>
+              <CardDescription>管理 MineCommit 对存档的跟踪</CardDescription>
+            </div>
+            {saves.length === 0 || <Button>添加跟踪</Button>}
+          </div>
         </CardHeader>
         <CardContent>
           {saves.length === 0 ? (
