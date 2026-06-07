@@ -18,14 +18,42 @@ import {
   HoverCardTrigger,
   HoverCardContent,
 } from "@/components/ui/hover-card"
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty"
 import { Button } from "@/components/ui/button"
-import { Trash2 } from "lucide-react"
+import { Trash2, ArrowUpRightIcon, HardDrive } from "lucide-react"
 
 interface Save {
   name: string
   path: string
   repoPath: string
   remoteRepoPath: string
+}
+
+function EmptySave() {
+  return (
+    <Empty>
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <HardDrive />
+        </EmptyMedia>
+        <EmptyTitle>跟踪一个存档</EmptyTitle>
+        <EmptyDescription>
+          <p>MineCommit 还没有跟踪任何存档</p>
+          <p>点击按钮来跟踪一个已有的存档</p>
+        </EmptyDescription>
+      </EmptyHeader>
+      <EmptyContent>
+        <Button>添加跟踪</Button>
+      </EmptyContent>
+    </Empty>
+  )
 }
 
 const saves: Save[] = [
@@ -58,16 +86,14 @@ const saves: Save[] = [
 export function SaveManagePage() {
   return (
     <div className="flex w-full flex-col gap-4 p-4">
-      <h1 className="text-2xl font-bold">存档管理</h1>
-
       <Card>
         <CardHeader>
           <CardTitle>存档列表</CardTitle>
-          <CardDescription>管理你的 Minecraft 存档</CardDescription>
+          <CardDescription>管理 MineCommit 对存档的跟踪</CardDescription>
         </CardHeader>
         <CardContent>
           {saves.length === 0 ? (
-            <p>empty</p>
+            <EmptySave />
           ) : (
             <Table>
               <TableHeader>
