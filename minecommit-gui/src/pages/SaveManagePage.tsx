@@ -18,6 +18,8 @@ import {
   HoverCardTrigger,
   HoverCardContent,
 } from "@/components/ui/hover-card"
+import { Button } from "@/components/ui/button"
+import { Trash2 } from "lucide-react"
 
 interface Save {
   name: string
@@ -69,6 +71,9 @@ export function SaveManagePage() {
               <TableRow>
                 <TableHead>存档名称</TableHead>
                 <TableHead>存档路径</TableHead>
+                <TableHead className="w-12">
+                  <span className="sr-only">操作</span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -80,6 +85,15 @@ export function SaveManagePage() {
                     <TableCell className="font-medium">{save.name}</TableCell>
                     <TableCell className="font-mono text-xs text-muted-foreground">
                       {save.path}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Trash2 />
+                      </Button>
                     </TableCell>
                   </HoverCardTrigger>
                   <HoverCardContent side="right" align="start" className="w-96">
@@ -121,7 +135,7 @@ export function SaveManagePage() {
               {saves.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={2}
+                    colSpan={3}
                     className="text-center text-muted-foreground"
                   >
                     暂无存档
