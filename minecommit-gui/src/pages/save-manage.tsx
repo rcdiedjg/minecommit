@@ -32,11 +32,13 @@ import {
 } from "@/components/ui/dialog"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Checkbox } from "@/components/ui/checkbox"
 import { useState } from "react"
 import { Trash2, HardDrive, FolderOpen } from "lucide-react"
 import { invoke } from "@tauri-apps/api/core"
 import { open as openFolderDialog } from "@tauri-apps/plugin-dialog"
 import { useSaves } from "@/contexts/saves"
+import { Label } from "@/components/ui/label"
 
 function EmptySave({ onAddTrack }: { onAddTrack: () => void }) {
   return (
@@ -337,12 +339,22 @@ function AddTrackDialog({
 export function SaveManagePage() {
   const { saves, loaded, refreshSaves } = useSaves()
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+  const [deleteRepoChecked, setDeleteRepoChecked] = useState(false)
   const [error, setError] = useState("")
 
-  async function handleDelete(name: string) {
+  async function handleConfirmDelete() {
+    if (!deleteTarget) return
     try {
-      await invoke("delete_save", { name })
+      await invoke("delete_save", {
+        name: deleteTarget,
+        deleteRepo: deleteRepoChecked,
+      })
       await refreshSaves()
+      setDeleteDialogOpen(false)
+      setDeleteTarget(null)
+      setDeleteRepoChecked(false)
     } catch (err) {
       setError(String(err))
     }
@@ -397,7 +409,9 @@ export function SaveManagePage() {
                           className="cursor-pointer"
                           onClick={(e) => {
                             e.stopPropagation()
-                            handleDelete(save.name)
+                            setDeleteTarget(save.name)
+                            setDeleteRepoChecked(false)
+                            setDeleteDialogOpen(true)
                           }}
                         >
                           <Trash2 />
@@ -447,6 +461,47 @@ export function SaveManagePage() {
         onOpenChange={setDialogOpen}
         onSaveAdded={refreshSaves}
       />
+
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>删除存档</DialogTitle>
+            <DialogDescription>
+              确定要删除存档「{deleteTarget}」吗？
+            </DialogDescription>
+          </DialogHeader>
+          <FieldGroup>
+            <Field orientation="horizontal" data-disabled>
+              <Checkbox
+                id="delete-repo-checkbox"
+                name="delete-repo-checkbox"
+                checked={deleteRepoChecked}
+                onCheckedChange={(checked) =>
+                  setDeleteRepoChecked(checked === true)
+                }
+              />
+              <Label htmlFor="delete-repo-checkbox">
+                同时删除本地 Git 仓库与备份数据
+              </Label>
+            </Field>
+          </FieldGroup>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleteDialogOpen(false)
+                setDeleteTarget(null)
+                setDeleteRepoChecked(false)
+              }}
+            >
+              取消
+            </Button>
+            <Button variant="destructive" onClick={handleConfirmDelete}>
+              删除
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

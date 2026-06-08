@@ -207,14 +207,30 @@ fn derive_save_info(path: String) -> Result<DeriveSaveInfo, AppError> {
 }
 
 #[tauri::command]
-fn delete_save(state: tauri::State<SaveState>, name: String) -> Result<(), AppError> {
+fn delete_save(
+    state: tauri::State<SaveState>,
+    name: String,
+    delete_repo: bool,
+) -> Result<(), AppError> {
     let mut saves = state.saves.lock().unwrap();
+    let save = saves.iter().find(|s| s.name == name).cloned();
     let len_before = saves.len();
     saves.retain(|s| s.name != name);
     if saves.len() == len_before {
         return Err(AppError::SaveNotFound(name));
     }
     save_saves(&state.data_dir, &saves)?;
+    drop(saves);
+
+    if delete_repo {
+        if let Some(save) = save {
+            let repo_path = Path::new(&save.repo_path);
+            if repo_path.exists() {
+                fs::remove_dir_all(repo_path)?;
+            }
+        }
+    }
+
     Ok(())
 }
 
