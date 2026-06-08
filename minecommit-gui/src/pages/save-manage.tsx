@@ -1,10 +1,4 @@
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from "@/components/ui/card"
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import {
   Table,
   TableHeader,
@@ -283,7 +277,6 @@ export function SaveManagePage() {
           <div className="flex items-end justify-between">
             <div>
               <CardTitle>存档列表</CardTitle>
-              <CardDescription>管理 MineCommit 对存档的跟踪</CardDescription>
             </div>
             {saves.length > 0 && (
               <Button onClick={() => setDialogOpen(true)}>添加跟踪</Button>
