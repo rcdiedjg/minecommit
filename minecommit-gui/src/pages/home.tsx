@@ -305,9 +305,7 @@ export function HomePage() {
     <div className="flex w-full flex-col items-center justify-center gap-4">
       <Dock items={items} />
       {selectedSave && (
-        <p className="text-sm text-muted-foreground">
-          {selectedSave.name} / {selectedSave.path}
-        </p>
+        <p className="text-sm text-muted-foreground">{selectedSave.name}</p>
       )}
       <CommitDialog
         open={commitDialogOpen}

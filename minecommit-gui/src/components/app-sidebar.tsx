@@ -15,6 +15,8 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -69,15 +71,19 @@ export function AppSidebar() {
                   {saves.length === 0 ? (
                     <DropdownMenuItem disabled>暂无存档</DropdownMenuItem>
                   ) : (
-                    saves.map((save) => (
-                      <DropdownMenuItem
-                        key={save.name}
-                        onClick={() => setSelectedSave(save)}
-                      >
-                        <HardDrive />
-                        {save.name}
-                      </DropdownMenuItem>
-                    ))
+                    <DropdownMenuRadioGroup
+                      value={selectedSave?.name ?? ""}
+                      onValueChange={(value) => {
+                        const save = saves.find((s) => s.name === value)
+                        if (save) setSelectedSave(save)
+                      }}
+                    >
+                      {saves.map((save) => (
+                        <DropdownMenuRadioItem key={save.name} value={save.name}>
+                          {save.name}
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
                   )}
                 </DropdownMenuGroup>
               </DropdownMenuContent>
