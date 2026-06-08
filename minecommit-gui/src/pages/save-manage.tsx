@@ -58,7 +58,7 @@ function EmptySave({ onAddTrack }: { onAddTrack: () => void }) {
   )
 }
 
-type AddTrackStep = "select" | "confirm"
+type AddTrackStep = "select" | "confirm" | "init"
 
 function AddTrackDialog({
   open,
@@ -78,6 +78,7 @@ function AddTrackDialog({
   const [remoteRepoPath, setRemoteRepoPath] = useState("")
   const [error, setError] = useState("")
   const [submitting, setSubmitting] = useState(false)
+  const [initializing, setInitializing] = useState(false)
   const [selecting, setSelecting] = useState(false)
 
   function resetAll() {
@@ -133,6 +134,14 @@ function AddTrackDialog({
     setError("")
     setSubmitting(true)
     try {
+      const exists = await invoke<boolean>("check_repo_exists", {
+        repoPath: localRepoPath,
+      })
+      if (!exists) {
+        setSubmitting(false)
+        setStep("init")
+        return
+      }
       await invoke("add_save", {
         name,
         path,
@@ -144,9 +153,36 @@ function AddTrackDialog({
       onSaveAdded()
     } catch (err) {
       setError(String(err))
-    } finally {
       setSubmitting(false)
     }
+  }
+
+  async function handleInitComplete(branchName: string) {
+    setInitializing(true)
+    try {
+      await invoke("init_bare_repo", {
+        repoPath: localRepoPath,
+        defaultBranch: branchName,
+      })
+      await invoke("add_save", {
+        name,
+        path,
+        repoPath: localRepoPath,
+        remoteRepoPath,
+      })
+      onOpenChange(false)
+      resetAll()
+      onSaveAdded()
+    } catch (err) {
+      setError(String(err))
+      setStep("confirm")
+    } finally {
+      setInitializing(false)
+    }
+  }
+
+  function handleInitCancel() {
+    setStep("confirm")
   }
 
   function handleBack() {
@@ -250,6 +286,48 @@ function AddTrackDialog({
               </Button>
             </DialogFooter>
           </form>
+        )}
+
+        {step === "init" && (
+          <>
+            <DialogHeader>
+              <DialogTitle>初始化 Git 仓库</DialogTitle>
+              <DialogDescription>
+                仓库目录不存在，需要初始化一个 Git 裸仓库
+              </DialogDescription>
+            </DialogHeader>
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor="init-branch">默认分支名</FieldLabel>
+                <Input
+                  id="init-branch"
+                  placeholder="main"
+                  defaultValue="main"
+                />
+              </Field>
+            </FieldGroup>
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <DialogFooter>
+              <Button variant="outline" onClick={handleInitCancel}>
+                返回
+              </Button>
+              <Button
+                disabled={initializing}
+                onClick={() => {
+                  const input = document.getElementById(
+                    "init-branch"
+                  ) as HTMLInputElement
+                  if (!input.value.trim()) {
+                    setError("分支名不能为空")
+                    return
+                  }
+                  handleInitComplete(input.value.trim())
+                }}
+              >
+                {initializing ? "初始化中…" : "初始化仓库"}
+              </Button>
+            </DialogFooter>
+          </>
         )}
       </DialogContent>
     </Dialog>

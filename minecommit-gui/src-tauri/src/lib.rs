@@ -2,6 +2,7 @@ use chrono::Local;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
+use std::process::Command;
 use std::sync::Mutex;
 use tauri::Manager;
 use thiserror::Error;
@@ -42,6 +43,41 @@ pub struct Save {
     pub repo_path: String,
     pub remote_repo_path: String,
     pub last_access: String,
+}
+
+#[tauri::command]
+fn check_repo_exists(repo_path: String) -> Result<bool, String> {
+    let output = Command::new("git")
+        .args(["--git-dir", &repo_path, "rev-parse", "--is-bare-repository"])
+        .output()
+        .map_err(|e| format!("Failed to check repository existence: {}", e))?;
+
+    Ok(output.status.success() && String::from_utf8_lossy(&output.stdout).trim() == "true")
+}
+
+#[tauri::command]
+fn init_bare_repo(repo_path: String, default_branch: String) -> Result<(), String> {
+    if let Some(parent) = Path::new(&repo_path).parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to make parent directory: {}", e))?;
+    }
+
+    let output = Command::new("git")
+        .args([
+            "init",
+            "--bare",
+            &format!("--initial-branch={}", default_branch),
+            &repo_path,
+        ])
+        .output()
+        .map_err(|e| format!("Failed to initialize repository: {}", e))?;
+
+    if output.status.success() {
+        Ok(())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(format!("Failed to initialize repository: {}", stderr))
+    }
 }
 
 struct SaveState {
@@ -208,6 +244,8 @@ pub fn run() {
             delete_save,
             derive_save_info,
             access_save,
+            check_repo_exists,
+            init_bare_repo,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
