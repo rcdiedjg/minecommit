@@ -351,6 +351,7 @@ function PullDialog({
 export function HomePage() {
   const { selectedSave } = useSaves()
   const [commitDialogOpen, setCommitDialogOpen] = useState(false)
+  const [commitDialogKey, setCommitDialogKey] = useState(0)
   const [restoreDialogOpen, setRestoreDialogOpen] = useState(false)
   const [pushDialogOpen, setPushDialogOpen] = useState(false)
   const [pullDialogOpen, setPullDialogOpen] = useState(false)
@@ -400,7 +401,10 @@ export function HomePage() {
     {
       icon: <HardDriveDownload />,
       label: "提交 / 备份",
-      onClick: () => setCommitDialogOpen(true),
+      onClick: () => {
+        setCommitDialogKey((k) => k + 1)
+        setCommitDialogOpen(true)
+      },
     },
     {
       icon: <HardDriveUpload />,
@@ -427,6 +431,7 @@ export function HomePage() {
         <p className="text-sm text-muted-foreground">{selectedSave.name}</p>
       )}
       <CommitDialog
+        key={commitDialogKey}
         open={commitDialogOpen}
         onOpenChange={setCommitDialogOpen}
         onCommitStart={handleCommitStart}
