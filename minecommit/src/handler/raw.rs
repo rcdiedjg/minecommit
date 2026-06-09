@@ -9,6 +9,7 @@ const RAW_GLOB_PATTERNS: &[&str] = &[
     "**/*.txt",
     "**/*.snbt",
     "**/*.toml",
+    "session.lock",
 ];
 
 pub(crate) struct RawHandler {
