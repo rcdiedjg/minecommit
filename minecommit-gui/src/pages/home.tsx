@@ -1,5 +1,6 @@
-import { useCallback, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { invoke } from "@tauri-apps/api/core"
+import { listen } from "@tauri-apps/api/event"
 import { useCommitAuthor } from "@/contexts/commit-author"
 import { Dock } from "@/components/unlumen-ui/dock"
 import {
@@ -33,15 +34,6 @@ import {
 } from "@/components/ui/select"
 import { RollingLogDialog, type Operation } from "@/components/rolling-log"
 
-interface CommitResult {
-  success: boolean
-  logs: string[]
-  error: string | null
-  size_before_mib: number | null
-  size_after_mib: number | null
-  size_change_pct: number | null
-}
-
 function CommitDialog({
   open,
   onOpenChange,
@@ -49,7 +41,7 @@ function CommitDialog({
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onCommitStart: (logs: string[], finished: boolean) => void
+  onCommitStart: () => void
 }) {
   const { author, setAuthor } = useCommitAuthor()
   const { selectedSave } = useSaves()
@@ -75,7 +67,11 @@ function CommitDialog({
       }
     }
 
-    invoke<CommitResult>("perform_commit", {
+    // Open log dialog and close commit dialog immediately
+    onOpenChange(false)
+    onCommitStart()
+
+    invoke<{ success: boolean; error: string | null }>("perform_commit", {
       saveDir: selectedSave.path,
       gitDir: selectedSave.repo_path,
       branch,
@@ -85,17 +81,15 @@ function CommitDialog({
       useRepack: false,
     })
       .then((result) => {
-        onCommitStart(result.logs, true)
         if (!result.success) {
           console.error("Commit failed:", result.error)
         }
       })
       .catch((err) => {
-        onCommitStart([`Error: ${err}`], true)
+        console.error("Commit error:", err)
       })
       .finally(() => {
         setCommitting(false)
-        onOpenChange(false)
       })
   }, [
     selectedSave,
@@ -364,6 +358,15 @@ export function HomePage() {
   const [operation, setOperation] = useState<Operation>("commit")
   const [commitLogs, setCommitLogs] = useState<string[]>([])
   const [commitFinished, setCommitFinished] = useState(false)
+  const unlistenRefs = useRef<Array<() => void>>([])
+
+  // Clean up event listeners when log dialog closes
+  useEffect(() => {
+    if (!logDialogOpen) {
+      unlistenRefs.current.forEach((fn) => fn())
+      unlistenRefs.current = []
+    }
+  }, [logDialogOpen])
 
   const openLog = (op: Operation, logs?: string[], finished?: boolean) => {
     setOperation(op)
@@ -372,9 +375,24 @@ export function HomePage() {
     setLogDialogOpen(true)
   }
 
-  const handleCommitStart = useCallback((logs: string[], finished: boolean) => {
-    setCommitLogs(logs)
-    setCommitFinished(finished)
+  const handleCommitStart = useCallback(async () => {
+    // Clear previous state and set up event listeners before opening dialog
+    setCommitLogs([])
+    setCommitFinished(false)
+    setOperation("commit")
+
+    // Clean up any previous listeners
+    unlistenRefs.current.forEach((fn) => fn())
+    unlistenRefs.current = []
+
+    const unlisten1 = await listen<string>("commit-log", (event) => {
+      setCommitLogs((prev) => [...prev, event.payload])
+    })
+    const unlisten2 = await listen("commit-finished", () => {
+      setCommitFinished(true)
+    })
+    unlistenRefs.current = [unlisten1, unlisten2]
+
     setLogDialogOpen(true)
   }, [])
 

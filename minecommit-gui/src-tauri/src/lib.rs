@@ -8,7 +8,9 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::process::Command;
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use tauri::{Emitter, Manager};
 use thiserror::Error;
 
@@ -118,145 +120,166 @@ async fn perform_commit(
     init_logger();
     take_logs(); // drain stale logs from previous calls
 
-    let emit = |line: &str| {
-        if let Err(e) = app.emit("commit-log", line) {
-            eprintln!("failed to emit commit-log event: {e}");
-        }
-    };
+    // Spawn a blocking thread to periodically drain and emit captured logs
+    let running = Arc::new(AtomicBool::new(true));
+    let running_clone = running.clone();
+    let app_clone = app.clone();
 
-    let capture = |lines: &[String]| {
-        for line in lines {
-            emit(line);
-        }
-    };
-
-    // 1. Resolve parents: auto-detect if it's the first commit on this branch
-    let parents = {
-        match git_cmd(&git_dir, ["rev-parse", &format!("{branch}^{{{{commit}}}}")]).output() {
-            Ok(out) if out.status.success() => {
-                let hash = String::from_utf8(out.stdout).unwrap_or_default().trim().to_owned();
-                log::info!("Branch '{branch}' exists at {hash}, creating child commit");
-                vec![hash]
-            }
-            // If the branch has no commits yet, create a root commit (init)
-            _ => {
-                log::info!("Branch '{branch}' has no commits yet, creating initial commit");
-                vec![]
-            }
-        }
-    };
-    let r#ref = format!("refs/heads/{}", &branch);
-
-    // 2. Count objects before
-    let size_before = match git_count_objects(&git_dir) {
-        Ok(s) => {
-            let v = s.total_size_mib();
-            log::info!("Repo size before: {v:.3} MiB");
-            v
-        }
-        Err(e) => {
-            log::warn!("Failed to count git objects: {e}");
-            f64::NAN
-        }
-    };
-
-    // 3. Run the commit
-    let unprocessed = match Config::new(
-        PathBuf::from(&save_dir),
-        PathBuf::from(&git_dir),
-        extra_patterns,
-        ignore_patterns,
-    )
-    .commit(parents, &message, Some(r#ref))
-    {
-        Ok(u) => u,
-        Err(e) => {
-            let msg = format!("{e:#}");
-            log::error!("{msg}");
+    let log_task = tauri::async_runtime::spawn_blocking(move || {
+        while running_clone.load(Ordering::Relaxed) {
             let logs = take_logs();
-            capture(&logs);
+            for line in &logs {
+                let _ = app_clone.emit("commit-log", line);
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        // Drain remaining logs after commit finishes
+        let logs = take_logs();
+        for line in &logs {
+            let _ = app_clone.emit("commit-log", line);
+        }
+    });
+
+    // Run the heavy commit work on another blocking thread, streaming logs in real time
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let git_dir_path = PathBuf::from(&git_dir);
+        let save_dir_path = PathBuf::from(&save_dir);
+
+        // 1. Resolve parents
+        let parents = {
+            match git_cmd(&git_dir_path, ["rev-parse", &format!("{branch}^{{{{commit}}}}")]).output() {
+                Ok(out) if out.status.success() => {
+                    let hash = String::from_utf8(out.stdout).unwrap_or_default().trim().to_owned();
+                    log::info!("Branch '{branch}' exists at {hash}, creating child commit");
+                    vec![hash]
+                }
+                _ => {
+                    log::info!("Branch '{branch}' has no commits yet, creating initial commit");
+                    vec![]
+                }
+            }
+        };
+        let r#ref = format!("refs/heads/{}", &branch);
+
+        // 2. Count objects before
+        let size_before = match git_count_objects(&git_dir_path) {
+            Ok(s) => {
+                let v = s.total_size_mib();
+                log::info!("Repo size before: {v:.3} MiB");
+                v
+            }
+            Err(e) => {
+                log::warn!("Failed to count git objects: {e}");
+                f64::NAN
+            }
+        };
+
+        // 3. Run the commit
+        let unprocessed = match Config::new(
+            save_dir_path.clone(),
+            git_dir_path.clone(),
+            extra_patterns,
+            ignore_patterns,
+        )
+        .commit(parents, &message, Some(r#ref))
+        {
+            Ok(u) => u,
+            Err(e) => {
+                let msg = format!("{e:#}");
+                log::error!("{msg}");
+                return PerformCommitResult {
+                    success: false,
+                    logs: vec![],
+                    error: Some(msg),
+                    size_before_mib: Some(size_before),
+                    size_after_mib: None,
+                    size_change_pct: None,
+                };
+            }
+        };
+
+        // 4. Check for unprocessed files
+        if !unprocessed.is_empty() {
+            for item in &unprocessed {
+                log::error!("Skipped file: {item}");
+            }
+            let msg = format!(
+                "Skipped {} files because they are not caught by any handler. Catch them via -p or ignore them via -i.",
+                unprocessed.len()
+            );
+            log::error!("{msg}");
             return PerformCommitResult {
                 success: false,
-                logs,
+                logs: vec![],
                 error: Some(msg),
                 size_before_mib: Some(size_before),
                 size_after_mib: None,
                 size_change_pct: None,
             };
         }
-    };
 
-    // 4. Check for unprocessed files
-    if !unprocessed.is_empty() {
-        for item in &unprocessed {
-            log::error!("Skipped file: {item}");
+        // 5. Optional repack
+        if use_repack {
+            if let Err(e) = git_repack(&git_dir_path) {
+                log::warn!("Repack failed: {e}");
+            }
+        } else {
+            log::warn!("--repack is not enabled, Git repository can get bloated");
         }
-        let msg = format!(
-            "Skipped {} files because they are not caught by any handler. Catch them via -p or ignore them via -i.",
-            unprocessed.len()
-        );
-        log::error!("{msg}");
-        let logs = take_logs();
-        capture(&logs);
-        return PerformCommitResult {
-            success: false,
-            logs,
-            error: Some(msg),
-            size_before_mib: Some(size_before),
-            size_after_mib: None,
-            size_change_pct: None,
+
+        // 6. Count objects after
+        let size_after = match git_count_objects(&git_dir_path) {
+            Ok(s) => {
+                let v = s.total_size_mib();
+                log::info!("Repo size after: {v:.3} MiB");
+                v
+            }
+            Err(e) => {
+                log::warn!("Failed to count git objects: {e}");
+                f64::NAN
+            }
         };
-    }
 
-    // 5. Optional repack
-    if use_repack {
-        if let Err(e) = git_repack(&git_dir) {
-            log::warn!("Repack failed: {e}");
+        let size_change_pct = if size_before.is_finite() && size_before > 0.0 {
+            Some((size_after - size_before) / size_before * 100.0)
+        } else {
+            None
+        };
+
+        if let Some(pct) = size_change_pct {
+            let sign = if pct >= 0.0 { '+' } else { '-' };
+            log::info!(
+                "Done. Total size: {size_after:.3} MiB ({sign}{pct:.4}% from {size_before:.3} MiB)"
+            );
+        } else {
+            log::info!("Done. Total size: {size_after:.3} MiB");
         }
-    } else {
-        log::warn!("--repack is not enabled, Git repository can get bloated");
-    }
 
-    // 6. Count objects after
-    let size_after = match git_count_objects(&git_dir) {
-        Ok(s) => {
-            let v = s.total_size_mib();
-            log::info!("Repo size after: {v:.3} MiB");
-            v
+        PerformCommitResult {
+            success: true,
+            logs: vec![],
+            error: None,
+            size_before_mib: Some(size_before),
+            size_after_mib: Some(size_after),
+            size_change_pct,
         }
-        Err(e) => {
-            log::warn!("Failed to count git objects: {e}");
-            f64::NAN
-        }
-    };
+    })
+    .await;
 
-    let size_change_pct = if size_before.is_finite() && size_before > 0.0 {
-        Some((size_after - size_before) / size_before * 100.0)
-    } else {
-        None
-    };
+    // Stop the log task and wait for final drain
+    running.store(false, Ordering::Relaxed);
+    let _ = log_task.await;
 
-    if let Some(pct) = size_change_pct {
-        let sign = if pct >= 0.0 { '+' } else { '-' };
-        log::info!(
-            "Done. Total size: {size_after:.3} MiB ({sign}{pct:.4}% from {size_before:.3} MiB)"
-        );
-    } else {
-        log::info!("Done. Total size: {size_after:.3} MiB");
-    }
-
-    let logs = take_logs();
-    capture(&logs);
     let _ = app.emit("commit-finished", ());
 
-    PerformCommitResult {
-        success: true,
-        logs,
-        error: None,
-        size_before_mib: Some(size_before),
-        size_after_mib: Some(size_after),
-        size_change_pct,
-    }
+    result.unwrap_or_else(|e| PerformCommitResult {
+        success: false,
+        logs: vec![],
+        error: Some(format!("Join error: {e}")),
+        size_before_mib: None,
+        size_after_mib: None,
+        size_change_pct: None,
+    })
 }
 
 #[tauri::command]
