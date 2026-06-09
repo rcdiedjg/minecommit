@@ -147,7 +147,7 @@ async fn perform_commit(
 
         // 1. Resolve parents
         let parents = {
-            match git_cmd(&git_dir_path, ["rev-parse", &format!("{branch}^{{{{commit}}}}")]).output() {
+            match git_cmd(&git_dir_path, ["rev-parse", &format!("{branch}^{{commit}}")]).output() {
                 Ok(out) if out.status.success() => {
                     let hash = String::from_utf8(out.stdout).unwrap_or_default().trim().to_owned();
                     log::info!("Branch '{branch}' exists at {hash}, creating child commit");
