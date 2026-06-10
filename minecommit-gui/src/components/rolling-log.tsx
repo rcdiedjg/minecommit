@@ -54,18 +54,22 @@ function toLogEntry(raw: LogLine): LogEntry {
  * previously seen entries so they don't change on every render.
  */
 function useStableEntries(lines: LogLine[] | undefined): LogEntry[] {
-  const entriesRef = React.useRef<LogEntry[]>([])
-  const src = lines ?? []
+  const [entries, setEntries] = React.useState<LogEntry[]>([])
+  const prevLengthRef = React.useRef(0)
 
-  // Reset when the array shrinks (e.g. new operation starts)
-  if (src.length < entriesRef.current.length) {
-    entriesRef.current = src.map(toLogEntry)
-  } else if (src.length > entriesRef.current.length) {
-    const fresh = src.slice(entriesRef.current.length).map(toLogEntry)
-    entriesRef.current = [...entriesRef.current, ...fresh]
-  }
+  React.useEffect(() => {
+    const src = lines ?? []
+    // Reset when the array shrinks (e.g. new operation starts)
+    if (src.length < prevLengthRef.current) {
+      setEntries(src.map(toLogEntry))
+    } else if (src.length > prevLengthRef.current) {
+      const fresh = src.slice(prevLengthRef.current).map(toLogEntry)
+      setEntries((prev) => [...prev, ...fresh])
+    }
+    prevLengthRef.current = src.length
+  }, [lines])
 
-  return entriesRef.current
+  return entries
 }
 
 function RollingLogContent({
@@ -125,7 +129,8 @@ function RollingLogContent({
   const handleCopy = React.useCallback(async () => {
     const text = entries
       .map(
-        (e) => `[${formatTimestamp(e.timestamp)}] [${LEVEL_LABELS[e.level]}] ${e.message}`
+        (e) =>
+          `[${formatTimestamp(e.timestamp)}] [${LEVEL_LABELS[e.level]}] ${e.message}`
       )
       .join("\n")
     try {
@@ -140,7 +145,8 @@ function RollingLogContent({
   const handleDownload = React.useCallback(() => {
     const text = entries
       .map(
-        (e) => `[${formatTimestamp(e.timestamp)}] [${LEVEL_LABELS[e.level]}] ${e.message}`
+        (e) =>
+          `[${formatTimestamp(e.timestamp)}] [${LEVEL_LABELS[e.level]}] ${e.message}`
       )
       .join("\n")
     const blob = new Blob([text], { type: "text/plain" })
@@ -191,7 +197,9 @@ function RollingLogContent({
                   {formatTimestamp(entry.timestamp)}
                 </span>
                 &nbsp;
-                <span className={cn("w-[3ch] shrink-0 font-semibold", colors.text)}>
+                <span
+                  className={cn("w-[3ch] shrink-0 font-semibold", colors.text)}
+                >
                   {LEVEL_LABELS[entry.level]}
                 </span>
                 &nbsp;
