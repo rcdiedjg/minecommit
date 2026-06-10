@@ -1,47 +1,179 @@
-import { useEffect, useMemo, useRef } from "react"
+import * as React from "react"
+import type { LogEntry } from "@/components/log-viewer"
+import { DEFAULT_LEVEL_COLORS, LEVEL_LABELS } from "@/components/log-viewer"
 import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { Check, ChevronsDown, Copy, Download } from "lucide-react"
+import { cn } from "@/lib/utils"
+import { Button } from "./ui/button"
 
 export type Operation = "commit" | "restore" | "push" | "pull"
 
+const OPERATION_LABELS: Record<Operation, string> = {
+  commit: "提交",
+  restore: "还原",
+  push: "推送",
+  pull: "拉取",
+}
+
+function formatTimestamp(): string {
+  const d = new Date()
+  const ms = d.getMilliseconds().toString().padStart(3, "0")
+  return `${d.toLocaleTimeString("en-US", {
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  })}.${ms}`
+}
+
+function toLogEntries(lines: string[] | undefined): LogEntry[] {
+  if (!lines) return []
+  const now = new Date().toISOString()
+  return lines.map((line) => {
+    const lower = line.toLowerCase()
+    const isError =
+      lower.includes("error") ||
+      lower.includes("fail") ||
+      lower.includes("fatal") ||
+      lower.startsWith("error:") ||
+      lower.startsWith("fatal:")
+    return {
+      level: isError ? ("error" as const) : ("info" as const),
+      message: line,
+      timestamp: now,
+    }
+  })
+}
+
 function RollingLogContent({
+  operation,
   externalLines,
   externalFinished,
   onForceStop,
 }: {
+  operation: Operation
   externalLines?: string[]
   externalFinished?: boolean
   onForceStop?: () => void
 }) {
-  const preRef = useRef<HTMLPreElement>(null)
   const finished = externalFinished ?? false
-  const lines = useMemo(() => externalLines ?? [], [externalLines])
+  const entries = toLogEntries(externalLines)
+  const scrollRef = React.useRef<HTMLDivElement>(null)
+  const [isAtBottom, setIsAtBottom] = React.useState(true)
+  const [copied, setCopied] = React.useState(false)
 
-  // Auto-scroll to bottom when lines change
-  useEffect(() => {
-    if (preRef.current) {
-      preRef.current.scrollTop = preRef.current.scrollHeight
+  // auto-scroll
+  React.useEffect(() => {
+    if (finished || !isAtBottom) return
+    const el = scrollRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [entries.length, finished, isAtBottom])
+
+  const handleScroll = React.useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const threshold = 40
+    const atBottom =
+      el.scrollHeight - el.scrollTop - el.clientHeight < threshold
+    setIsAtBottom(atBottom)
+  }, [])
+
+  const scrollToBottom = React.useCallback(() => {
+    const el = scrollRef.current
+    if (el) {
+      el.scrollTop = el.scrollHeight
+      setIsAtBottom(true)
     }
-  }, [lines])
+  }, [])
+
+  const handleCopy = React.useCallback(async () => {
+    const text = entries
+      .map(
+        (e) => `[${formatTimestamp()}] [${LEVEL_LABELS[e.level]}] ${e.message}`
+      )
+      .join("\n")
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1500)
+    } catch {
+      // ignore
+    }
+  }, [entries])
+
+  const handleDownload = React.useCallback(() => {
+    const text = entries
+      .map(
+        (e) => `[${formatTimestamp()}] [${LEVEL_LABELS[e.level]}] ${e.message}`
+      )
+      .join("\n")
+    const blob = new Blob([text], { type: "text/plain" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `${operation}-${new Date().toISOString().slice(0, 19).replace(/:/g, "-")}.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [entries, operation])
 
   return (
     <>
-      <AlertDialogHeader>
-        <AlertDialogTitle>运行日志</AlertDialogTitle>
-      </AlertDialogHeader>
-      <pre
-        ref={preRef}
-        className="min-h-0 overflow-y-auto rounded-md bg-secondary p-4 font-mono text-sm whitespace-pre-wrap text-secondary-foreground"
+      {/* Simplified toolbar */}
+      <div className="flex items-center">
+        <span className="flex-1 text-base">
+          {OPERATION_LABELS[operation]}日志
+        </span>
+        <Button variant="ghost" onClick={handleCopy}>
+          {copied ? <Check /> : <Copy />}
+        </Button>
+        <Button variant="ghost" onClick={handleDownload}>
+          <Download />
+        </Button>
+        <Button variant="ghost" onClick={scrollToBottom}>
+          <ChevronsDown />
+        </Button>
+      </div>
+
+      {/* Log output */}
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="overflow-auto font-mono text-sm leading-relaxed"
+        role="log"
+        aria-live="polite"
       >
-        {lines.join("\n")}
-      </pre>
+        {entries.length === 0 ? (
+          <div className="flex items-center justify-center py-10 text-sm text-muted-foreground">
+            暂无日志
+          </div>
+        ) : (
+          entries.map((entry, i) => {
+            const colors = DEFAULT_LEVEL_COLORS[entry.level]
+            return (
+              <div key={i} className="flex">
+                <span className="text-muted-foreground/60">
+                  {formatTimestamp()}
+                </span>
+                &nbsp;
+                <span className={cn("w-[3ch] font-semibold", colors.text)}>
+                  {LEVEL_LABELS[entry.level]}
+                </span>
+                &nbsp;
+                <span className="break-all whitespace-pre-wrap">
+                  {entry.message}
+                </span>
+              </div>
+            )
+          })
+        )}
+      </div>
+
       <AlertDialogFooter>
         <AlertDialogCancel disabled={!finished}>关闭</AlertDialogCancel>
         {!finished && (
@@ -75,6 +207,7 @@ export function RollingLogDialog({
         {open && (
           <RollingLogContent
             key={operation}
+            operation={operation}
             externalLines={logs}
             externalFinished={finished}
             onForceStop={onForceStop}
