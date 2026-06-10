@@ -262,9 +262,8 @@ async fn perform_commit(
         };
 
         if let Some(pct) = size_change_pct {
-            let sign = if pct >= 0.0 { '+' } else { '-' };
             log::info!(
-                "Done. Total size: {size_after:.3} MiB ({sign}{pct:.4}% from {size_before:.3} MiB)"
+                "Done. Total size: {size_after:.3} MiB ({pct:+.4}% from {size_before:.3} MiB)"
             );
         } else {
             log::info!("Done. Total size: {size_after:.3} MiB");
