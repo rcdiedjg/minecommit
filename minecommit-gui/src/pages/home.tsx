@@ -79,7 +79,7 @@ function CommitDialog({
       message: finalMessage,
       extraPatterns: [],
       ignorePatterns: [],
-      useRepack: false,
+      useRepack: true,
     })
       .then((result) => {
         if (!result.success) {
