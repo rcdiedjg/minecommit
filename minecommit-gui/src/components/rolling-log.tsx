@@ -188,14 +188,7 @@ function RollingLogContent({
             return (
               <div key={i} className="flex">
                 <span className="shrink-0 text-muted-foreground/60">
-                  {entry.timestamp
-                    ? new Date(entry.timestamp).toLocaleTimeString("en-US", {
-                        hour12: false,
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        second: "2-digit",
-                      })
-                    : formatTimestamp()}
+                  {formatTimestamp(entry.timestamp)}
                 </span>
                 &nbsp;
                 <span className={cn("w-[3ch] shrink-0 font-semibold", colors.text)}>
