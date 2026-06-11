@@ -395,6 +395,186 @@ async fn perform_restore(
     })
 }
 
+// ─── Push / Pull ────────────────────────────────────────────────────────────
+
+#[tauri::command]
+async fn perform_push(
+    app: tauri::AppHandle,
+    git_dir: String,
+    remote: String,
+    branch: String,
+) -> PerformRestoreResult {
+    init_logger();
+    take_logs();
+
+    let running = Arc::new(AtomicBool::new(true));
+    let running_clone = running.clone();
+    let app_clone = app.clone();
+
+    let log_task = tauri::async_runtime::spawn_blocking(move || {
+        while running_clone.load(Ordering::Relaxed) {
+            let logs = take_logs();
+            for entry in &logs {
+                let _ = app_clone.emit("commit-log", entry);
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        let logs = take_logs();
+        for entry in &logs {
+            let _ = app_clone.emit("commit-log", entry);
+        }
+    });
+
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        log::info!("Pushing branch '{branch}' to remote '{remote}'...");
+
+        let output = Command::new("git")
+            .args(["--git-dir", &git_dir, "push", &remote, &branch])
+            .output();
+
+        match output {
+            Ok(out) => {
+                let stdout = String::from_utf8_lossy(&out.stdout);
+                let stderr = String::from_utf8_lossy(&out.stderr);
+                for line in stdout.lines().filter(|l| !l.is_empty()) {
+                    log::info!("{line}");
+                }
+                for line in stderr.lines().filter(|l| !l.is_empty()) {
+                    if out.status.success() {
+                        log::info!("{line}");
+                    } else {
+                        log::error!("{line}");
+                    }
+                }
+                if out.status.success() {
+                    log::info!("Push completed successfully");
+                    PerformRestoreResult {
+                        success: true,
+                        logs: vec![],
+                        error: None,
+                    }
+                } else {
+                    let msg = stderr.trim().to_string();
+                    PerformRestoreResult {
+                        success: false,
+                        logs: vec![],
+                        error: Some(msg),
+                    }
+                }
+            }
+            Err(e) => {
+                let msg = format!("Failed to run git push: {e}");
+                log::error!("{msg}");
+                PerformRestoreResult {
+                    success: false,
+                    logs: vec![],
+                    error: Some(msg),
+                }
+            }
+        }
+    })
+    .await;
+
+    running.store(false, Ordering::Relaxed);
+    let _ = log_task.await;
+    let _ = app.emit("commit-finished", ());
+
+    result.unwrap_or_else(|e| PerformRestoreResult {
+        success: false,
+        logs: vec![],
+        error: Some(format!("Join error: {e}")),
+    })
+}
+
+#[tauri::command]
+async fn perform_pull(
+    app: tauri::AppHandle,
+    git_dir: String,
+    remote: String,
+    branch: String,
+) -> PerformRestoreResult {
+    init_logger();
+    take_logs();
+
+    let running = Arc::new(AtomicBool::new(true));
+    let running_clone = running.clone();
+    let app_clone = app.clone();
+
+    let log_task = tauri::async_runtime::spawn_blocking(move || {
+        while running_clone.load(Ordering::Relaxed) {
+            let logs = take_logs();
+            for entry in &logs {
+                let _ = app_clone.emit("commit-log", entry);
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        let logs = take_logs();
+        for entry in &logs {
+            let _ = app_clone.emit("commit-log", entry);
+        }
+    });
+
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        log::info!("Fetching branch '{branch}' from remote '{remote}'...");
+
+        let output = Command::new("git")
+            .args(["--git-dir", &git_dir, "fetch", &remote, &branch])
+            .output();
+
+        match output {
+            Ok(out) => {
+                let stdout = String::from_utf8_lossy(&out.stdout);
+                let stderr = String::from_utf8_lossy(&out.stderr);
+                for line in stdout.lines().filter(|l| !l.is_empty()) {
+                    log::info!("{line}");
+                }
+                for line in stderr.lines().filter(|l| !l.is_empty()) {
+                    if out.status.success() {
+                        log::info!("{line}");
+                    } else {
+                        log::error!("{line}");
+                    }
+                }
+                if out.status.success() {
+                    log::info!("Fetch completed successfully");
+                    PerformRestoreResult {
+                        success: true,
+                        logs: vec![],
+                        error: None,
+                    }
+                } else {
+                    let msg = stderr.trim().to_string();
+                    PerformRestoreResult {
+                        success: false,
+                        logs: vec![],
+                        error: Some(msg),
+                    }
+                }
+            }
+            Err(e) => {
+                let msg = format!("Failed to run git fetch: {e}");
+                log::error!("{msg}");
+                PerformRestoreResult {
+                    success: false,
+                    logs: vec![],
+                    error: Some(msg),
+                }
+            }
+        }
+    })
+    .await;
+
+    running.store(false, Ordering::Relaxed);
+    let _ = log_task.await;
+    let _ = app.emit("commit-finished", ());
+
+    result.unwrap_or_else(|e| PerformRestoreResult {
+        success: false,
+        logs: vec![],
+        error: Some(format!("Join error: {e}")),
+    })
+}
+
 #[tauri::command]
 fn check_repo_exists(repo_path: String) -> Result<bool, String> {
     let output = Command::new("git")
@@ -707,6 +887,8 @@ pub fn run() {
             set_commit_author,
             perform_commit,
             perform_restore,
+            perform_push,
+            perform_pull,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

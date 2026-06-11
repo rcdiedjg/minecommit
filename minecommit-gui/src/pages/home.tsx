@@ -24,14 +24,6 @@ import { Field, FieldGroup } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { RollingLogDialog, type Operation } from "@/components/rolling-log"
 import type { LogLine } from "@/components/log-viewer"
 import { SaveHoverCard } from "@/components/save-hover-card"
@@ -228,20 +220,43 @@ function RestoreDialog({
 function PushDialog({
   open,
   onOpenChange,
-  onSubmit,
+  onPushStart,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onSubmit: () => void
+  onPushStart: () => void
 }) {
-  const remotes = [
-    { label: "origin", value: "https://example.com/HairlessVillager/save.git" },
-    { label: "upstream", value: "https://example.com/upstream/save.git" },
-  ]
-  const branchs = [
-    { label: "main", value: "main" },
-    { label: "dev", value: "dev" },
-  ]
+  const { selectedSave } = useSaves()
+  const [pushing, setPushing] = useState(false)
+  const [remote, setRemote] = useState(selectedSave?.remote_repo_path ?? "")
+  const [branch, setBranch] = useState(selectedSave?.default_branch ?? "main")
+
+  const handlePush = useCallback(async () => {
+    const save = selectedSave
+    if (!save || pushing || !remote || !branch) return
+    setPushing(true)
+
+    onOpenChange(false)
+    onPushStart()
+
+    invoke<{ success: boolean; error: string | null }>("perform_push", {
+      gitDir: save.repo_path,
+      remote,
+      branch,
+    })
+      .then((result) => {
+        if (!result.success) {
+          console.error("Push failed:", result.error)
+        }
+      })
+      .catch((err) => {
+        console.error("Push error:", err)
+      })
+      .finally(() => {
+        setPushing(false)
+      })
+  }, [selectedSave, pushing, remote, branch, onPushStart, onOpenChange])
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
@@ -250,45 +265,37 @@ function PushDialog({
         </DialogHeader>
         <FieldGroup>
           <Field>
-            <Label htmlFor="message">远程仓库</Label>
-            <Select items={remotes}>
-              <SelectTrigger className="w-45">
-                <SelectValue placeholder="origin" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {remotes.map((item) => (
-                    <SelectItem key={item.value} value={item.value}>
-                      {item.label}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>{" "}
+            <Label htmlFor="push-remote">远程仓库地址</Label>
+            <Input
+              id="push-remote"
+              name="push-remote"
+              placeholder="https://example.com/user/save.git"
+              value={remote}
+              onChange={(e) => setRemote(e.target.value)}
+            />
           </Field>
           <Field>
-            <Label htmlFor="message">推送分支</Label>
-            <Select items={branchs}>
-              <SelectTrigger className="w-45">
-                <SelectValue placeholder="main" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {branchs.map((item) => (
-                    <SelectItem key={item.value} value={item.value}>
-                      {item.label}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>{" "}
+            <Label htmlFor="push-branch">推送分支</Label>
+            <Input
+              id="push-branch"
+              name="push-branch"
+              placeholder="main"
+              value={branch}
+              onChange={(e) => setBranch(e.target.value)}
+            />
           </Field>
         </FieldGroup>
         <DialogFooter>
           <DialogClose
-            render={<Button variant="outline">取消</Button>}
+            render={
+              <Button variant="outline" disabled={pushing}>
+                取消
+              </Button>
+            }
           ></DialogClose>
-          <Button onClick={onSubmit}>推送</Button>
+          <Button onClick={handlePush} disabled={pushing || !remote || !branch}>
+            {pushing ? "推送中..." : "推送"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -298,20 +305,43 @@ function PushDialog({
 function PullDialog({
   open,
   onOpenChange,
-  onSubmit,
+  onPullStart,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onSubmit: () => void
+  onPullStart: () => void
 }) {
-  const remotes = [
-    { label: "origin", value: "https://example.com/HairlessVillager/save.git" },
-    { label: "upstream", value: "https://example.com/upstream/save.git" },
-  ]
-  const branchs = [
-    { label: "main", value: "main" },
-    { label: "dev", value: "dev" },
-  ]
+  const { selectedSave } = useSaves()
+  const [pulling, setPulling] = useState(false)
+  const [remote, setRemote] = useState(selectedSave?.remote_repo_path ?? "")
+  const [branch, setBranch] = useState(selectedSave?.default_branch ?? "main")
+
+  const handlePull = useCallback(async () => {
+    const save = selectedSave
+    if (!save || pulling || !remote || !branch) return
+    setPulling(true)
+
+    onOpenChange(false)
+    onPullStart()
+
+    invoke<{ success: boolean; error: string | null }>("perform_pull", {
+      gitDir: save.repo_path,
+      remote,
+      branch,
+    })
+      .then((result) => {
+        if (!result.success) {
+          console.error("Pull failed:", result.error)
+        }
+      })
+      .catch((err) => {
+        console.error("Pull error:", err)
+      })
+      .finally(() => {
+        setPulling(false)
+      })
+  }, [selectedSave, pulling, remote, branch, onPullStart, onOpenChange])
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
@@ -320,45 +350,37 @@ function PullDialog({
         </DialogHeader>
         <FieldGroup>
           <Field>
-            <Label htmlFor="message">远程仓库</Label>
-            <Select items={remotes}>
-              <SelectTrigger className="w-45">
-                <SelectValue placeholder="origin" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {remotes.map((item) => (
-                    <SelectItem key={item.value} value={item.value}>
-                      {item.label}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>{" "}
+            <Label htmlFor="pull-remote">远程仓库地址</Label>
+            <Input
+              id="pull-remote"
+              name="pull-remote"
+              placeholder="https://example.com/user/save.git"
+              value={remote}
+              onChange={(e) => setRemote(e.target.value)}
+            />
           </Field>
           <Field>
-            <Label htmlFor="message">拉取分支</Label>
-            <Select items={branchs}>
-              <SelectTrigger className="w-45">
-                <SelectValue placeholder="main" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {branchs.map((item) => (
-                    <SelectItem key={item.value} value={item.value}>
-                      {item.label}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>{" "}
+            <Label htmlFor="pull-branch">拉取分支</Label>
+            <Input
+              id="pull-branch"
+              name="pull-branch"
+              placeholder="main"
+              value={branch}
+              onChange={(e) => setBranch(e.target.value)}
+            />
           </Field>
         </FieldGroup>
         <DialogFooter>
           <DialogClose
-            render={<Button variant="outline">取消</Button>}
+            render={
+              <Button variant="outline" disabled={pulling}>
+                取消
+              </Button>
+            }
           ></DialogClose>
-          <Button onClick={onSubmit}>拉取</Button>
+          <Button onClick={handlePull} disabled={pulling || !remote || !branch}>
+            {pulling ? "拉取中..." : "拉取"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -371,7 +393,9 @@ export function HomePage() {
   const [commitDialogKey, setCommitDialogKey] = useState(0)
   const [restoreDialogOpen, setRestoreDialogOpen] = useState(false)
   const [pushDialogOpen, setPushDialogOpen] = useState(false)
+  const [pushDialogKey, setPushDialogKey] = useState(0)
   const [pullDialogOpen, setPullDialogOpen] = useState(false)
+  const [pullDialogKey, setPullDialogKey] = useState(0)
   const [logDialogOpen, setLogDialogOpen] = useState(false)
   const [operation, setOperation] = useState<Operation>("commit")
   const [commitLogs, setCommitLogs] = useState<LogLine[]>([])
@@ -385,13 +409,6 @@ export function HomePage() {
       unlistenRefs.current = []
     }
   }, [logDialogOpen])
-
-  const openLog = (op: Operation, logs?: LogLine[], finished?: boolean) => {
-    setOperation(op)
-    if (logs !== undefined) setCommitLogs(logs)
-    if (finished !== undefined) setCommitFinished(finished)
-    setLogDialogOpen(true)
-  }
 
   const setupLogListeners = useCallback(async (op: Operation) => {
     setCommitLogs([])
@@ -420,6 +437,14 @@ export function HomePage() {
     await setupLogListeners("restore")
   }, [setupLogListeners])
 
+  const handlePushStart = useCallback(async () => {
+    await setupLogListeners("push")
+  }, [setupLogListeners])
+
+  const handlePullStart = useCallback(async () => {
+    await setupLogListeners("pull")
+  }, [setupLogListeners])
+
   const items = [
     {
       icon: <HardDriveDownload />,
@@ -438,12 +463,18 @@ export function HomePage() {
     {
       icon: <CloudUpload />,
       label: "上传 / 推送",
-      onClick: () => setPushDialogOpen(true),
+      onClick: () => {
+        setPushDialogKey((k) => k + 1)
+        setPushDialogOpen(true)
+      },
     },
     {
       icon: <CloudDownload />,
       label: "下载 / 拉取",
-      onClick: () => setPullDialogOpen(true),
+      onClick: () => {
+        setPullDialogKey((k) => k + 1)
+        setPullDialogOpen(true)
+      },
     },
   ]
 
@@ -469,20 +500,16 @@ export function HomePage() {
         onRestoreStart={handleRestoreStart}
       />
       <PushDialog
+        key={pushDialogKey}
         open={pushDialogOpen}
         onOpenChange={setPushDialogOpen}
-        onSubmit={() => {
-          setPushDialogOpen(false)
-          openLog("push")
-        }}
+        onPushStart={handlePushStart}
       />
       <PullDialog
+        key={pullDialogKey}
         open={pullDialogOpen}
         onOpenChange={setPullDialogOpen}
-        onSubmit={() => {
-          setPullDialogOpen(false)
-          openLog("pull")
-        }}
+        onPullStart={handlePullStart}
       />
       <RollingLogDialog
         open={logDialogOpen}
