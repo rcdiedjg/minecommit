@@ -451,7 +451,11 @@ export function HomePage() {
     <div className="flex w-full flex-col items-center justify-center gap-4">
       <Dock items={items} />
       {selectedSave && (
-        <p className="text-sm text-muted-foreground">{selectedSave.name}</p>
+        <SaveHoverCard save={selectedSave}>
+          <Button variant="link" className="text-muted-foreground">
+            {selectedSave.name}
+          </Button>
+        </SaveHoverCard>
       )}
       <CommitDialog
         key={commitDialogKey}
