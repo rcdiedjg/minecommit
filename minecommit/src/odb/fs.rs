@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::{Component, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use anyhow::{Context, Result};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
@@ -16,12 +16,36 @@ impl LocalFsOdb {
     }
 }
 
+// Convert a /-separated ODB key into a native PathBuf for filesystem operations.
+fn key_to_native(key: &str) -> PathBuf {
+    #[cfg(windows)]
+    {
+        PathBuf::from(key.replace('/', "\\"))
+    }
+    #[cfg(not(windows))]
+    {
+        PathBuf::from(key)
+    }
+}
+
+/// Convert a native path back to a /-separated ODB key.
+fn native_to_key(path: &Path) -> Option<String> {
+    let s = path.to_str()?;
+    #[cfg(windows)]
+    {
+        Some(s.replace('\\', "/"))
+    }
+    #[cfg(not(windows))]
+    {
+        Some(s.to_string())
+    }
+}
+
 /// Validate that an ODB key stays within the root directory.
-///
-/// A key must be a relative path with no `..` components and no absolute
-/// root component so that `root_dir.join(key)` always resolves inside the
-/// sandbox.
 fn assert_safe_key(key: &str) -> Result<()> {
+    if key.contains('\\') {
+        anyhow::bail!("ODB key contains backslash: {key:?}");
+    }
     for component in std::path::Path::new(key).components() {
         match component {
             Component::ParentDir => anyhow::bail!("ODB key contains '..': {key:?}"),
@@ -37,7 +61,8 @@ fn assert_safe_key(key: &str) -> Result<()> {
 impl OdbReader for LocalFsOdb {
     fn get(&self, key: &str) -> Result<Vec<u8>> {
         assert_safe_key(key)?;
-        Ok(fs::read(self.root_dir.join(key)).context("failed to read file from odb")?)
+        Ok(fs::read(self.root_dir.join(key_to_native(key)))
+            .context("failed to read file from odb")?)
     }
 
     fn get_par(&self, keys: &[&str]) -> Result<Vec<Vec<u8>>> {
@@ -49,7 +74,7 @@ impl OdbReader for LocalFsOdb {
 
     fn glob(&self, pattern: &str) -> Result<Vec<String>> {
         assert_safe_key(pattern)?;
-        let full_pattern = self.root_dir.join(pattern);
+        let full_pattern = self.root_dir.join(key_to_native(pattern));
         let root = self.root_dir.clone();
         Ok(glob::glob(
             full_pattern
@@ -59,11 +84,7 @@ impl OdbReader for LocalFsOdb {
         .context("failed to run glob")?
         .filter_map(|e| e.ok())
         .filter(|path| path.is_file())
-        .filter_map(|path| {
-            path.strip_prefix(&root)
-                .ok()
-                .and_then(|p| p.to_str().map(|s| s.to_string()))
-        })
+        .filter_map(|path| path.strip_prefix(&root).ok().and_then(|p| native_to_key(p)))
         .collect())
     }
 }
@@ -71,7 +92,7 @@ impl OdbReader for LocalFsOdb {
 impl OdbWriter for LocalFsOdb {
     fn put(&mut self, key: &str, value: impl AsRef<[u8]>) -> Result<()> {
         assert_safe_key(key)?;
-        let path = self.root_dir.join(key);
+        let path = self.root_dir.join(key_to_native(key));
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)
                 .with_context(|| format!("failed to create parent directory for key {key:?}"))?;
@@ -87,7 +108,7 @@ impl OdbWriter for LocalFsOdb {
     ) -> Result<()> {
         entries.into_par_iter().try_for_each(|(key, value)| {
             assert_safe_key(&key)?;
-            let path = self.root_dir.join(&key);
+            let path = self.root_dir.join(key_to_native(&key));
             if let Some(parent) = path.parent() {
                 fs::create_dir_all(parent).with_context(|| {
                     format!("failed to create parent directory for key {key:?}")
