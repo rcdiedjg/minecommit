@@ -195,10 +195,12 @@ Each handler operates within its own namespaced workspace. The ODB (Object Datab
 - [x] CI/CD pipeline for automated builds (Windows, Linux, macOS)
 - [x] Mod data handler for popular mods (e.g., SDMEconomy, CosArmor)
 - [ ] GUI full implementation
-    - [ ] Commit / Restore integration with backend
-    - [ ] Push / Pull to remote repositories
+    - [x] Commit / Restore integration with backend
+    - [x] Push / Pull to remote repositories
     - [ ] Commit history browser
     - [ ] Save size analytics dashboard
+- [ ] Git Index based two-stage commit
+- [ ] `chunky-pick`: Chunk-based merging
 - [ ] Blob object textification
     - [ ] `minecommit merge`: Chunk-level and game-semantic level merging
     - [ ] `minecommit diff`: Quickly view differences between two commits
