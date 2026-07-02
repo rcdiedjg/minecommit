@@ -1,23 +1,23 @@
 #!/bin/bash
-
-CONFIG_FILE="$(pwd)/backup.conf"
-
+loadConfig() {
+    if [ ! -f "$1" ]; then
+        echo "Config file not found: $1"
+        exit 1
+    fi
+    source "$1"
+}
 para() {
-    echo "backup_minecommit.sh [-i] [-h] [-r commit_id] [-l]"
+    echo "backup_minecommit.sh [-i] [-h] [-r commit_id] [-l] [-f config_file]"
     echo "Description:"
     echo " -i    initial repo"
     echo " -h    show this help"
     echo " -r    restore to a specific commit"
     echo " -l    show commit log"
+    echo " -f    read config file"
     exit 1
 }
 
 init() {
-    if [ -f "$CONFIG_FILE" ]; then
-        echo "Config file already exists, please delete it first"
-        exit 1
-    fi
-
     read -p "Git repo folder name : " repo_name
     read -p "Minecraft map/world folder path (full path) : " map_loc
 
@@ -36,7 +36,7 @@ init() {
     {
         echo "repo_loc='$repo_loc'"
         echo "map_loc='$map_loc'"
-    } > "$CONFIG_FILE"
+    } > "$(pwd)/$repo_name.conf"
 
     mkdir -p "$repo_loc" && echo "git repo folder created"
     git init --initial-branch main --bare "$repo_loc"
@@ -57,12 +57,7 @@ showLog() {
     exit 0
 }
 
-# 先讀設定檔(-i / -h 不需要, -r / -l 及主迴圈都需要 repo_loc / map_loc)
-if [ -f "$CONFIG_FILE" ]; then
-    source "$CONFIG_FILE"
-fi
-
-while getopts 'ihr:l' OPT; do
+while getopts 'ihr:l:f:' OPT; do
     case $OPT in
         i) init ;;
         h) para ;;
@@ -80,12 +75,14 @@ while getopts 'ihr:l' OPT; do
             fi
             showLog
             ;;
+        f) loadConfig "$OPTARG" ;;
         \?) echo "unknown option: -$OPTARG"; exit 1 ;;
         :) echo "option -$OPTARG requires an argument"; exit 1 ;;
+        *) echo "unknown error while processing options"; exit 1 ;;
     esac
 done
 if [ -z "$repo_loc" ] || [ -z "$map_loc" ]; then
-    echo "No config found, please run with -i to initialize first"
+    echo "No config found, check -h for help"
     exit 1
 fi
 
