@@ -7,7 +7,7 @@ loadConfig() {
     source "$1"
 }
 para() {
-    echo "backup_minecommit.sh [-i] [-h] [-r commit_id] [-l] [-f config_file]"
+    echo "backup_minecommit.sh [-i] [-h] [-r config_file] [-l config_file] [-f config_file]"
     echo "Description:"
     echo " -i    initial repo"
     echo " -h    show this help"
@@ -53,6 +53,7 @@ restore() {
 }
 
 showLog() {
+
     git --git-dir="$repo_loc" log --oneline
     exit 0
 }
@@ -62,15 +63,18 @@ while getopts 'ihr:l:f:' OPT; do
         i) init ;;
         h) para ;;
         r)
+            loadConfig "$OPTARG"
+            read -p "enter commit id to restore : " commit_id
             if [ -z "$repo_loc" ] || [ -z "$map_loc" ]; then
-                echo "No config found, please run -i first"
+                echo "No config found, check -h for help"
                 exit 1
             fi
-            restore "$OPTARG"
+            restore $commit_id
             ;;
         l)
+            loadConfig "$OPTARG"
             if [ -z "$repo_loc" ]; then
-                echo "No config found, please run -i first"
+                echo "No config found, check -h for help"
                 exit 1
             fi
             showLog
